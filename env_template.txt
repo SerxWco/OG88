@@ -1,0 +1,12 @@
+# Copy this file to .env and add your bot token
+# Get your bot token from @BotFather on Telegram
+
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+
+# Optional: override defaults for burn monitoring / explorer calls
+# BLOCKSCOUT_API_BASE=https://scan.w-chain.com/api/v2
+# OG88_TOKEN_ADDRESS=0xD1841fC048b488d92fdF73624a2128D10A847E88
+# BURN_WALLET_ADDRESS=0x000000000000000000000000000000000000dEaD
+# BURN_MONITOR_POLL_SECONDS=60
+# BURN_ALERT_ANIMATION_URL=https://example.com/path/to/animation.gif
+
