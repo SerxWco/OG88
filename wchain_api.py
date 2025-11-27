@@ -15,6 +15,7 @@ from config import (
     BLOCKSCOUT_API_BASE,
     OG88_TOKEN_ADDRESS,
     BURN_WALLET_ADDRESS,
+    OG88_LIQUIDITY_ADDRESSES,
 )
 
 class WChainAPI:
@@ -89,6 +90,26 @@ class WChainAPI:
             if isinstance(value, list):
                 return value
         return None
+
+    def _fetch_token_transfers_for_token(
+        self,
+        token_address: str,
+        limit: int = 25
+    ) -> Optional[List[Dict]]:
+        """Fetch recent ERC-20 transfers for a specific token."""
+        normalized_address = token_address.lower()
+        params = {"per_page": limit}
+        url = f"{BLOCKSCOUT_API_BASE}/tokens/{normalized_address}/transfers"
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            payload = response.json()
+        except requests.RequestException as exc:
+            print(f"Error fetching token transfers for {token_address}: {exc}")
+            return None
+
+        items = payload.get("items")
+        return items if isinstance(items, list) else None
 
     def _get_token_balance_for_address(
         self,
@@ -367,3 +388,47 @@ class WChainAPI:
             if tx.get('token', {}).get('address', '').lower() == OG88_TOKEN_ADDRESS
         ]
         return og88_transfers or []
+
+    def get_recent_og88_buys(
+        self,
+        min_amount: Decimal,
+        limit: int = 5,
+        fetch_size: int = 40
+    ) -> Optional[List[Dict]]:
+        """Return recent OG88 buys that exceed the configured minimum amount."""
+        transfers = self._fetch_token_transfers_for_token(
+            OG88_TOKEN_ADDRESS,
+            limit=max(fetch_size, limit * 4)
+        )
+        if transfers is None:
+            return None
+
+        liquidity_addresses = {addr.lower() for addr in OG88_LIQUIDITY_ADDRESSES if addr}
+        if not liquidity_addresses:
+            return []
+
+        big_buys: List[Dict] = []
+        for entry in transfers:
+            from_address = (entry.get("from", {}).get("hash") or "").lower()
+            if from_address not in liquidity_addresses:
+                continue
+
+            total_info = entry.get("total", {})
+            decimals = total_info.get("decimals") or entry.get("token", {}).get("decimals") or 18
+            amount = self._normalize_erc20_amount(total_info.get("value"), decimals)
+            if amount is None or amount < min_amount:
+                continue
+
+            big_buys.append({
+                "amount": amount,
+                "transaction_hash": entry.get("transaction_hash"),
+                "timestamp": entry.get("timestamp"),
+                "from": entry.get("from", {}),
+                "to": entry.get("to", {}),
+                "method": entry.get("method"),
+            })
+
+            if len(big_buys) >= limit:
+                break
+
+        return big_buys
