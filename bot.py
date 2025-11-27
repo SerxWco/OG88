@@ -14,6 +14,7 @@ from config import (
     BURN_MONITOR_POLL_SECONDS,
     BURN_ALERT_ANIMATION_URL,
     BURN_ALERT_VIDEO_PATH,
+    BIG_BUY_ALERT_VIDEO_PATH,
     OG88_BIG_BUY_THRESHOLD,
     OG88_BUY_MONITOR_POLL_SECONDS,
     OG88_LIQUIDITY_ADDRESSES,
@@ -545,19 +546,33 @@ async def broadcast_big_buy_alert(event: dict, subscribers: Set[int], context: C
     tx_url = f"{SCAN_BASE_URL}/tx/{tx_hash}" if tx_hash else SCAN_BASE_URL
 
     message = (
-        "🐋 **OG88 BIG BUY ALERT** 🐋\n"
-        f"{amount_str} ANDA gobbled up!\n"
+        "🐼 **OG88 BIG BUY ALERT!** 🐼\n\n"
+        f"Wow! Someone just scooped up *{amount_str} OG88*!\n\n"
         f"💰 USD Value: {usd_display}\n"
         f"🪙 WCO Value: {wco_display}\n\n"
         f"Buyer: `{buyer}`\n"
         f"Method: {method}\n"
-        f"Time: {timestamp}\n"
-        f"Tx: [View on W-Scan]({tx_url})"
+        f"⏱️ Time: {timestamp}\n"
+        f"🔗 Tx: [View on W-Scan]({tx_url})\n\n"
+        "🎉 Stay tuned — OG88 activity is heating up!"
     )
+
+    video_path = Path(BIG_BUY_ALERT_VIDEO_PATH) if BIG_BUY_ALERT_VIDEO_PATH else None
+    video_available = bool(video_path and video_path.is_file())
+    if BIG_BUY_ALERT_VIDEO_PATH and not video_available:
+        logger.warning("Big buy alert video not found at %s", BIG_BUY_ALERT_VIDEO_PATH)
 
     for chat_id in list(subscribers):
         try:
             await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
+            if video_available and video_path:
+                caption = f"🐼 {amount_str} OG88 buy!"
+                with video_path.open("rb") as animation_file:
+                    await context.bot.send_animation(
+                        chat_id=chat_id,
+                        animation=animation_file,
+                        caption=caption
+                    )
         except Forbidden:
             subscribers.remove(chat_id)
             logger.warning("Removed chat %s from big buy alerts (forbidden).", chat_id)
