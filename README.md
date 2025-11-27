@@ -37,6 +37,7 @@ Create a `.env` file (or set environment variables) with at least the Telegram t
 | `BURN_MONITOR_POLL_SECONDS` | ⚙️ | Poll frequency for burn alerts (default `60`) |
 | `BURN_ALERT_ANIMATION_URL` | ⚙️ | Optional GIF/animation URL appended to burn alerts |
 | `BURN_ALERT_VIDEO_PATH` | ⚙️ | Optional local video sent with burn alerts (`Assets/burn.mp4` by default) |
+| `BIG_BUY_ALERT_VIDEO_PATH` | ⚙️ | Optional local video sent with big buy alerts (`Assets/buy.mp4` by default) |
 
 All other endpoints (price oracle, explorer API, etc.) are configured in `config.py` but can be overridden via environment variables if needed.
 
@@ -76,5 +77,6 @@ README.md
 - **Bot silent?** Double-check `TELEGRAM_BOT_TOKEN` and ensure the process is running (`python bot.py`).
 - **No whale alerts?** Confirm `OG88_LIQUIDITY_ADDRESSES` contains the active pool address and that the threshold is realistic relative to current trading volume.
 - **Missing burn animations?** Ensure the URL/path defined in `BURN_ALERT_ANIMATION_URL` or `BURN_ALERT_VIDEO_PATH` is reachable/readable by the bot.
+- **Missing buy videos?** Confirm `BIG_BUY_ALERT_VIDEO_PATH` points to an accessible file (defaults to `Assets/buy.mp4`).
 
 Feel free to open issues or PRs to extend the bot (e.g., adding new OG88 data sources or more alert types).
