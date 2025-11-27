@@ -1,5 +1,6 @@
 import os
-from typing import Optional
+from decimal import Decimal, InvalidOperation
+from typing import List, Optional
 
 # Basic .env parsing so we can re-use values throughout the config file
 _ENV_CACHE = {}
@@ -20,6 +21,25 @@ def _get_env(key: str, default: Optional[str] = None) -> Optional[str]:
     return _ENV_CACHE.get(key) or os.getenv(key) or default
 
 
+def _get_env_list(key: str, default: Optional[str] = None) -> List[str]:
+    """Return a normalized list parsed from a comma-separated environment entry."""
+    raw_value = _get_env(key, default)
+    if not raw_value:
+        return []
+    return [item.strip().lower() for item in raw_value.split(',') if item.strip()]
+
+
+def _get_decimal_env(key: str, default: str) -> Decimal:
+    """Parse a Decimal from the environment or fall back to the provided default."""
+    raw_value = _get_env(key)
+    if raw_value is None:
+        return Decimal(default)
+    try:
+        return Decimal(raw_value)
+    except (InvalidOperation, ValueError):
+        return Decimal(default)
+
+
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN = _get_env('TELEGRAM_BOT_TOKEN')
 
@@ -34,11 +54,17 @@ WAVE_COUNTERS_API = "https://scan.w-chain.com/api/v2/tokens/0x42AbfB13B4E3d25407
 
 # Block explorer / monitoring settings
 BLOCKSCOUT_API_BASE = _get_env('BLOCKSCOUT_API_BASE', 'https://scan.w-chain.com/api/v2')
-OG88_TOKEN_ADDRESS = _get_env('OG88_TOKEN_ADDRESS', '0xD1841fC048b488d92fdF73624a2128D10A847E88').lower()
-BURN_WALLET_ADDRESS = _get_env('BURN_WALLET_ADDRESS', '0x000000000000000000000000000000000000dEaD').lower()
 BURN_MONITOR_POLL_SECONDS = int(_get_env('BURN_MONITOR_POLL_SECONDS', '60'))
 BURN_ALERT_ANIMATION_URL = (_get_env('BURN_ALERT_ANIMATION_URL', '') or '').strip() or None
 BURN_ALERT_VIDEO_PATH = (_get_env('BURN_ALERT_VIDEO_PATH', 'Assets/burn.mp4') or '').strip() or None
+
+OG88_TOKEN_ADDRESS = _get_env('OG88_TOKEN_ADDRESS', '0xD1841fC048b488d92fdF73624a2128D10A847E88').lower()
+BURN_WALLET_ADDRESS = _get_env('BURN_WALLET_ADDRESS', '0x000000000000000000000000000000000000dEaD').lower()
+OG88_LIQUIDITY_ADDRESSES = set(_get_env_list('OG88_LIQUIDITY_ADDRESSES', '0xC61856cdf226645eaB487352C031Ec4341993F87'))
+OG88_BIG_BUY_THRESHOLD = _get_decimal_env('OG88_BIG_BUY_THRESHOLD', '100')
+OG88_BUY_MONITOR_POLL_SECONDS = int(
+    _get_env('OG88_BUY_MONITOR_POLL_SECONDS', str(BURN_MONITOR_POLL_SECONDS))
+)
 
 # Cache settings
 CACHE_TTL = 120  # 2 minutes for supply info

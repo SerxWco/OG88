@@ -14,6 +14,9 @@ from config import (
     BURN_MONITOR_POLL_SECONDS,
     BURN_ALERT_ANIMATION_URL,
     BURN_ALERT_VIDEO_PATH,
+    OG88_BIG_BUY_THRESHOLD,
+    OG88_BUY_MONITOR_POLL_SECONDS,
+    OG88_LIQUIDITY_ADDRESSES,
 )
 
 # Enable logging
@@ -28,7 +31,7 @@ wchain_api = WChainAPI()
 
 # Burn addresses to include wherever aggregate burn totals are required
 BURN_ADDRESSES: Set[str] = {BURN_WALLET_ADDRESS}
-OG88_CONTRACT_DISPLAY = "0xD1841fC048b488d92fdF73624a2128D10A847E88"
+SCAN_BASE_URL = "https://scan.w-chain.com"
 
 def format_number(num: float, decimals: int = 2) -> str:
     """Format large numbers with appropriate suffixes"""
@@ -85,6 +88,20 @@ def ensure_burn_subscribers(bot_data: dict) -> Set[int]:
     return bot_data["burn_watch_subscribers"]
 
 
+def ensure_big_buy_state(bot_data: dict) -> dict:
+    """Ensure the big buy monitoring cursor exists."""
+    if "big_buy_state" not in bot_data:
+        bot_data["big_buy_state"] = {"last_hash": None}
+    return bot_data["big_buy_state"]
+
+
+def ensure_big_buy_subscribers(bot_data: dict) -> Set[int]:
+    """Ensure the big buy subscriber set exists."""
+    if "big_buy_subscribers" not in bot_data:
+        bot_data["big_buy_subscribers"] = set()
+    return bot_data["big_buy_subscribers"]
+
+
 def normalize_token_amount(raw_value: str, decimals: int) -> Decimal:
     """Return a Decimal token amount given raw blockchain value and decimals."""
     try:
@@ -109,194 +126,139 @@ def format_supply_value(amount: Optional[Decimal]) -> str:
         return "N/A"
     return format_token_amount(amount)
 
+
+def format_buy_event_summary(event: dict) -> str:
+    """Return a Markdown snippet describing a big buy event."""
+    amount = event.get("amount") or Decimal("0")
+    amount_str = format_token_amount(amount)
+    buyer = event.get("to", {}).get("hash") or "Unknown"
+    timestamp = format_timestamp(event.get("timestamp"))
+    tx_hash = event.get("transaction_hash", "")
+    tx_url = f"{SCAN_BASE_URL}/tx/{tx_hash}" if tx_hash else SCAN_BASE_URL
+
+    summary = (
+        f"• `{buyer}` scooped *{amount_str} ANDA*\n"
+        f"  🕒 {timestamp}\n"
+    )
+    if tx_hash:
+        summary += f"  🔗 [Transaction]({tx_url})\n"
+    return summary
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     welcome_message = """
-🎯 **WChain Bot**
+🐼 **OG88 Meme Bot**
 
-Welcome! I provide real-time information about W-Chain and its tokens.
+Welcome to the OG88 panda command center. This bot now focuses 100% on the
+original meme coin of W Chain.
 
-**Available Commands:**
-/start - See this welcome message
-/wco - Complete WCO token information (price, supply, market cap, burn stats)
-/wave - WAVE token price and market information
-/OG88 - 🐼 OG88 token price and market information
-/buy - Buy WCO, WAVE & OG88 tokens on exchanges
-/burnwatch - Subscribe or unsubscribe from OG88 burn alerts
+**Commands**
+/price - OG88 spot price in USD + WCO
+/supply - Current total vs burned supply
+/holders - Wallet count pulled from W-Scan
+/burnwatch - Toggle burn alerts for the panda furnace
+/buys - Subscribe to >100 ANDA buy alerts
 
-**Quick Start:**
-Use /wco for comprehensive W-Chain data! 📊
+Use /price or /supply for the fastest status check. 🔥
 """
     await update.message.reply_text(welcome_message, parse_mode='Markdown')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
     help_message = """
-📖 **WChain Bot Help**
+📖 **OG88 Meme Bot Help**
 
-**Available Commands:**
-/start - See the welcome message
-/wco - Complete WCO token information (price, supply, market cap, burn stats)
-/wave - WAVE token price and market information
-/OG88 - 🐼 OG88 token price and market information
-/buy - Buy WCO, WAVE & OG88 tokens on exchanges
-/burnwatch - Subscribe or unsubscribe from OG88 burn alerts
+**Core Commands**
+/start - Quick intro and command list
+/price - Spot price (USD + WCO) with timestamp
+/supply - Total / burned / circulating snapshot
+/holders - Total OG88 holder count
+/burnwatch - Subscribe/unsubscribe from burn alerts
+/buys - Subscribe/unsubscribe from big buy alerts (>100 ANDA)
 
-**Data Sources:**
-• Price data from W-Chain Oracle API
-• OG88 price data from OG88 Price API
-• Supply data from W-Chain Supply API
-• Real-time updates with 1-2 minute caching
+**Data Sources**
+• OG88 price feed (Railway OG88 API)
+• W-Chain explorer counters & transfers
+• Direct burn wallet + liquidity pool monitoring
 
-**Features:**
-• Real-time price tracking
-• Supply distribution analysis
-• Market cap calculations
-• Burned token tracking
-• Multi-token support (WCO, WAVE, OG88)
-• Automatic OG88 burn alerts with optional animation attachments
-
-**Quick Start:**
-Use /wco for comprehensive W-Chain data! 📊
+**Tips**
+• Use `/buys status` or `/burnwatch status` to confirm subscriptions
+• Configure OG88 liquidity pool addresses via `OG88_LIQUIDITY_ADDRESSES`
     """
     await update.message.reply_text(help_message, parse_mode='Markdown')
 
 async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Get WCO and WAVE token prices."""
-    await update.message.reply_text("🔄 Fetching price data...")
-    
-    wco_price = wchain_api.get_wco_price()
-    wave_price = wchain_api.get_wave_price()
-    
-    if not wco_price and not wave_price:
-        await update.message.reply_text("❌ Unable to fetch price data. Please try again later.")
+    """Return OG88 price information in USD and WCO."""
+    await update.message.reply_text("🔄 Fetching OG88 price data...")
+
+    price_data = wchain_api.get_og88_price()
+
+    if not price_data:
+        await update.message.reply_text("❌ Unable to fetch OG88 price. Please try again later.")
         return
-    
-    message = "💰 **Token Prices**\n\n"
-    
-    if wco_price:
-        price = wco_price.get('price', 0)
-        message += f"**WCO:** {format_price(price)}\n"
-        # Note: 24h change would need historical data, not available in current API
-    
-    if wave_price:
-        price = wave_price.get('price', 0)
-        message += f"**WAVE:** {format_price(price)}\n"
-    
-    message += f"\n📊 *Data from W-Chain Oracle API*"
+
+    price_usd = float(price_data.get("price_usd") or 0)
+    price_wco = float(price_data.get("price_wco") or 0)
+    market_cap = price_data.get("market_cap")
+    last_updated = format_timestamp(price_data.get("last_updated"))
+
+    message = "💰 **OG88 Price**\n\n"
+    message += f"**USD:** {format_price(price_usd)}\n"
+    message += f"**WCO:** {format_wco_price(price_wco)} WCO\n"
+
+    if market_cap not in (None, "", 0):
+        try:
+            cap_value = float(market_cap)
+            message += f"**Market Cap:** ${format_number(cap_value, 2)}\n"
+        except (ValueError, TypeError):
+            pass
+
+    if last_updated and last_updated != "Unknown":
+        message += f"\n🕒 Updated: {last_updated}\n"
+
+    message += "\n📊 *Data from OG88 Price Oracle*"
     await update.message.reply_text(message, parse_mode='Markdown')
 
 async def supply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Get WCO supply information."""
-    await update.message.reply_text("🔄 Fetching supply data...")
-    
-    supply_data = wchain_api.get_wco_supply_info()
-    
-    if not supply_data:
-        await update.message.reply_text("❌ Unable to fetch supply data. Please try again later.")
+    """Get OG88 supply and burn information."""
+    await update.message.reply_text("🔄 Fetching OG88 supply data...")
+
+    supply_info = wchain_api.get_og88_supply_overview(burn_addresses=BURN_ADDRESSES)
+
+    if not supply_info:
+        await update.message.reply_text("❌ Unable to fetch OG88 supply data. Please try again later.")
         return
-    
-    summary = supply_data.get('summary', {})
-    
-    message = "📊 **WCO Supply Information**\n\n"
-    
-    # Get supply data
-    initial_supply = float(summary.get('initial_supply_wco', 0))
-    circulating_supply = float(summary.get('circulating_supply_wco', 0))
-    locked_supply = float(summary.get('locked_supply_wco', 0))
-    burned_supply = float(summary.get('burned_supply_wco', 0))
-    
-    # Calculate total supply (initial - burnt)
-    total_supply = initial_supply - burned_supply
-    
-    message += f"**Total Supply:** {total_supply:,.0f} WCO\n"
-    message += f"**Circulating Supply:** {circulating_supply:,.0f} WCO\n"
-    message += f"**Locked Supply:** {format_number(locked_supply, 2)} WCO\n"
-    message += f"**WCO Burnt:** {format_number(burned_supply, 2)} WCO\n"
-    
-    # Calculate percentages based on total supply
-    if total_supply > 0:
-        circulating_pct = (circulating_supply / total_supply) * 100
-        locked_pct = (locked_supply / total_supply) * 100
-        burned_pct = (burned_supply / total_supply) * 100
-        
-        message += f"\n**Distribution:**\n"
-        message += f"• Circulating: {circulating_pct:.1f}%\n"
-        message += f"• Locked: {locked_pct:.1f}%\n"
-        message += f"• Burned: {burned_pct:.1f}%\n"
-    
-    message += f"\n📊 *Data from W-Chain Supply API*"
+
+    total_display = format_supply_value(supply_info.get("total_supply"))
+    burned_display = format_supply_value(supply_info.get("burned"))
+    circulating_display = format_supply_value(supply_info.get("circulating_supply"))
+
+    message = "📦 **OG88 Supply**\n\n"
+    message += f"📉 Circulating: {circulating_display} ANDA\n"
+    message += f"🔥 Burned Forever: {burned_display} ANDA\n"
+    message += f"📦 Total Minted: {total_display} ANDA\n"
+
+    message += "\n📊 *Data from W-Chain Explorer*"
     await update.message.reply_text(message, parse_mode='Markdown')
 
 
-async def wco_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show WCO token information."""
-    await update.message.reply_text("🔄 Fetching WCO data...")
-    
-    wco_price = wchain_api.get_wco_price()
-    supply_data = wchain_api.get_wco_supply_info()
-    market_cap = wchain_api.get_market_cap()
-    holders_count = wchain_api.get_holders_count()
-    
-    if not wco_price and not supply_data:
-        await update.message.reply_text("❌ Unable to fetch WCO data. Please try again later.")
-        return
-    
-    message = "🪙 **WCO Token Information**\n\n"
-    
-    # Price and Market Cap
-    if wco_price:
-        price = wco_price.get('price', 0)
-        message += f"💰 **Price:** {format_price(price)}\n"
-    
-    if market_cap:
-        message += f"📊 **Market Cap:** ${format_number(market_cap, 2)}\n"
-    
-    message += "\n"
-    
-    # Supply Information
-    if supply_data:
-        summary = supply_data.get('summary', {})
-        initial_supply = float(summary.get('initial_supply_wco', 0))
-        circulating_supply = float(summary.get('circulating_supply_wco', 0))
-        locked_supply = float(summary.get('locked_supply_wco', 0))
-        burned_supply = float(summary.get('burned_supply_wco', 0))
-        
-        total_supply = initial_supply - burned_supply
-        
-        message += "📈 **Supply Stats:**\n"
-        message += f"🔢 Total: {total_supply:,.0f} WCO\n"
-        message += f"💸 Circulating: {circulating_supply:,.0f} WCO\n"
-        message += f"🔒 Locked: {format_number(locked_supply, 2)} WCO\n"
-        message += f"🔥 Burnt: {format_number(burned_supply, 2)} WCO\n"
-        
-        # Calculate percentages
-        if total_supply > 0:
-            circulating_pct = (circulating_supply / total_supply) * 100
-            locked_pct = (locked_supply / total_supply) * 100
-            burned_pct = (burned_supply / total_supply) * 100
-            
-            message += f"\n📊 **Distribution:**\n"
-            message += f"💸 Circulating: {circulating_pct:.1f}%\n"
-            message += f"🔒 Locked: {locked_pct:.1f}%\n"
-            message += f"🔥 Burnt: {burned_pct:.1f}%\n"
-    
-    await update.message.reply_text(message, parse_mode='Markdown')
+async def holders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Get OG88 holder and transfer counts."""
+    await update.message.reply_text("🔄 Fetching OG88 holders...")
 
-async def buy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show buy links for WCO, WAVE, and OG88 tokens."""
-    message = "💳 **Buy WCO, WAVE & OG88 Tokens**\n\n"
-    message += "🪙 **WCO (Native Token):**\n"
-    message += f"🔗 [Bitmart](https://www.bitmart.com/es-ES/invite/Pdc9we)\n"
-    message += f"🔗 [Mexc](https://www.mexc.com/invite/register?inviteCode=1LqAi&source=invite&utm_source=usershare&utm_medium=usershare&utm_biz=affiliate&utm_campaign=invite)\n"
-    message += f"🔗 [Bitrue](https://www.bitrue.com/referral/landing?cn=600000&inviteCode=LHLAAG)\n"
-    message += f"🔗 [W-Swap DEX](https://app.w-swap.com/#/)\n\n"
-    message += "🌊 **WAVE (Reward Token):**\n"
-    message += f"🔗 [W-Swap DEX](https://app.w-swap.com/#/)\n\n"
-    message += "🎯 **OG88 (Community Meme):**\n"
-    message += f"🔗 [W-Swap DEX](https://app.w-swap.com/#/)\n\n"
-    message += "💡 *Click any link above to start trading!*"
-    
+    counters = wchain_api.get_og88_counters()
+    if not counters:
+        await update.message.reply_text("❌ Unable to fetch holder information. Please try again later.")
+        return
+
+    holders_count = int(counters.get('token_holders_count', 0))
+    transfers_count = int(counters.get('transfers_count', 0))
+
+    message = "👥 **OG88 Holders**\n\n"
+    message += f"Total Holders: {holders_count:,}\n"
+    message += f"Transfers Recorded: {transfers_count:,}\n"
+    message += "\n📊 *Source: W-Chain Explorer Counters*"
+
     await update.message.reply_text(message, parse_mode='Markdown')
 
 
@@ -338,120 +300,82 @@ async def burnwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             logger.warning("Burn watch initialization failed: no recent burns found.")
 
-async def wave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show WAVE token information."""
-    await update.message.reply_text("🔄 Fetching WAVE data...")
-    
-    wave_price = wchain_api.get_wave_price()
-    wco_price = wchain_api.get_wco_price()
-    wave_counters = wchain_api.get_wave_counters()
-    
-    if not wave_price:
-        await update.message.reply_text("❌ Unable to fetch WAVE data. Please try again later.")
-        return
-    
-    message = "🌊 **WAVE Token Information**\n\n"
-    
-    # Price Information
-    if wave_price:
-        price = wave_price.get('price', 0)
-        message += f"💰 **Price:** {format_price(price)}\n"
-    
-    # WCO Price for reference
-    if wco_price:
-        wco_price_val = wco_price.get('price', 0)
-        message += f"🪙 **WCO Price:** {format_wco_price(wco_price_val)} WCO\n"
-    
-    # Add holders and transfers count
-    if wave_counters:
-        holders_count = int(wave_counters.get('token_holders_count', 0))
-        transfers_count = int(wave_counters.get('transfers_count', 0))
-        message += f"👥 **Holders:** {holders_count:,}\n"
-        message += f"🔄 **Transfers:** {transfers_count:,}\n"
-    
-    message += "\n"
-    message += "📋 **Token Info:**\n"
-    message += "WAVE is the native reward and incentive token at the heart of W Swap, W Chain's decentralized exchange. Designed to catalyze liquidity, user participation, and sustainable ecosystem growth, WAVE empowers users through liquidity mining, staking rewards, and future governance capabilities.\n"
-    message += "\n💱 Price calculated via WAVE/WCO trading pair"
-    
-    message += f"\n📊 *Data from W-Chain Oracle API & W-Chain Explorer*"
-    
-    await update.message.reply_text(message, parse_mode='Markdown')
 
-async def og88_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show OG88 token information."""
-    await update.message.reply_text("🔄 Fetching OG88 data...")
-    
-    og88_data = wchain_api.get_og88_price()
-    og88_counters = wchain_api.get_og88_counters()
-    
-    if not og88_data:
-        await update.message.reply_text("❌ Unable to fetch OG88 data. Please try again later.")
+async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Manage OG88 big buy alert subscriptions."""
+    if not update.effective_chat or not update.message:
         return
-    
-    message = "🐼 **OG88 Token Information**\n\n"
-    
-    # Price Information
-    price_usd = float(og88_data.get('price_usd', 0))
-    price_wco = float(og88_data.get('price_wco', 0))
-    market_cap = float(og88_data.get('market_cap', 0))
-    
-    message += f"💰 **Price USD:** {format_price(price_usd)}\n"
-    message += f"🪙 **Price WCO:** {format_wco_price(price_wco)} WCO\n"
-    message += f"📊 **Market Cap:** ${format_number(market_cap, 2)}\n"
-    
-    # Add holders and transfers count
-    if og88_counters:
-        holders_count = int(og88_counters.get('token_holders_count', 0))
-        transfers_count = int(og88_counters.get('transfers_count', 0))
-        message += f"👥 **Holders:** {holders_count:,}\n"
-        message += f"🔄 **Transfers:** {transfers_count:,}\n"
-    
-    # Add last updated timestamp
-    last_updated = og88_data.get('last_updated', 'N/A')
-    if last_updated != 'N/A':
-        message += f"🕒 **Last Updated:** {last_updated}\n"
-    
-    message += "\n📋 **Token Info:**\n"
-    message += "OG 88 – The Original Community Meme on W Chain:\n"
-    
-    message += f"\n🌐 **Website:** [OG88.meme](https://og88.meme)\n"
-    message += f"🔗 **Contract:** [0xD1841fC048b488d92fdF73624a2128D10A847E88](https://scan.w-chain.com/token/0xD1841fC048b488d92fdF73624a2128D10A847E88)\n"
-    
-    message += f"\n📊 *Data from OG88 Price API & W-Chain Explorer*"
-    
-    await update.message.reply_text(message, parse_mode='Markdown')
 
-async def ogsupply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show OG88 supply overview derived from explorer data."""
-    if not update.message:
+    if not OG88_LIQUIDITY_ADDRESSES:
+        await update.message.reply_text(
+            "⚠️ Big buy alerts require OG88 liquidity pool addresses. "
+            "Please set OG88_LIQUIDITY_ADDRESSES in your environment."
+        )
         return
-    await update.message.reply_text("🔄 Fetching OG88 supply data...")
-    
-    supply_info = wchain_api.get_og88_supply_overview(burn_addresses=BURN_ADDRESSES)
-    
-    if not supply_info:
-        await update.message.reply_text("❌ Unable to fetch OG88 supply data. Please try again later.")
+
+    chat_id = update.effective_chat.id
+    subscribers = ensure_big_buy_subscribers(context.application.bot_data)
+    buy_state = ensure_big_buy_state(context.application.bot_data)
+    action = (context.args[0].lower() if context.args else "").strip()
+    threshold_display = format_token_amount(OG88_BIG_BUY_THRESHOLD)
+
+    if action in {"off", "stop", "unsubscribe"}:
+        if chat_id in subscribers:
+            subscribers.remove(chat_id)
+            await update.message.reply_text("🛑 Big buy alerts disabled for this chat.")
+        else:
+            await update.message.reply_text("ℹ️ Big buy alerts are already disabled here.")
         return
-    
-    total_display = format_supply_value(supply_info.get("total_supply"))
-    burned_display = format_supply_value(supply_info.get("burned"))
-    circulating_display = format_supply_value(supply_info.get("circulating_supply"))
-    contract_display = OG88_CONTRACT_DISPLAY
-    if OG88_TOKEN_ADDRESS and OG88_TOKEN_ADDRESS.lower() != OG88_CONTRACT_DISPLAY.lower():
-        contract_display = OG88_TOKEN_ADDRESS
-    
-    message = (
-        "📦 OG88 Supply Overview\n\n"
-        f"📉 Circulating Supply: {circulating_display} OG88\n"
-        f"🔥 Burned Forever: {burned_display} OG88\n"
-        f"📦 Total Supply: {total_display} OG88\n\n"
-        f"⛓️ Contract: {contract_display}\n"
-        "📊 Data from W-Chain Explorer"
+
+    if action == "status":
+        count = len(subscribers)
+        status = "subscribed" if chat_id in subscribers else "not subscribed"
+        await update.message.reply_text(
+            f"📊 Big buy alerts are {status}. Threshold: {threshold_display} ANDA. "
+            f"Total subscribers: {count}."
+        )
+        return
+
+    if action in {"latest", "recent"}:
+        events = wchain_api.get_recent_og88_buys(
+            min_amount=OG88_BIG_BUY_THRESHOLD,
+            limit=3
+        )
+        if events is None:
+            await update.message.reply_text("❌ Unable to fetch recent buys. Please try again later.")
+            return
+        if not events:
+            await update.message.reply_text(
+                f"ℹ️ No OG88 buys above {threshold_display} ANDA in the latest blocks."
+            )
+            return
+        message = "🐋 **Latest Big Buys**\n\n"
+        message += "\n".join(format_buy_event_summary(event) for event in events)
+        await update.message.reply_text(message, parse_mode='Markdown')
+        return
+
+    if chat_id in subscribers:
+        await update.message.reply_text(
+            f"✅ Big buy alerts already enabled for {threshold_display}+ ANDA."
+        )
+        return
+
+    subscribers.add(chat_id)
+    await update.message.reply_text(
+        "🐼 Panda scouts activated! You'll be pinged whenever "
+        f"{threshold_display}+ ANDA are purchased."
     )
-    
-    await update.message.reply_text(message)
- 
+
+    if buy_state.get("last_hash") is None:
+        recent_buys = wchain_api.get_recent_og88_buys(
+            min_amount=OG88_BIG_BUY_THRESHOLD,
+            limit=1
+        )
+        if recent_buys:
+            buy_state["last_hash"] = recent_buys[0].get("transaction_hash")
+        else:
+            logger.info("Big buy watch initialized but no prior transactions were found.")
+
 
 async def monitor_burn_wallet(context: ContextTypes.DEFAULT_TYPE):
     """Periodic job that checks the burn wallet for new OG88 transfers."""
@@ -549,6 +473,97 @@ async def broadcast_burn_alert(transaction: dict, subscribers: Set[int], context
         except Exception as exc:
             logger.warning("Unable to send burn alert to %s: %s", chat_id, exc)
 
+
+async def monitor_big_buys(context: ContextTypes.DEFAULT_TYPE):
+    """Periodic job that checks for OG88 buys above the configured threshold."""
+    subscribers = ensure_big_buy_subscribers(context.application.bot_data)
+    if not subscribers or not OG88_LIQUIDITY_ADDRESSES:
+        return
+
+    buy_state = ensure_big_buy_state(context.application.bot_data)
+    events = wchain_api.get_recent_og88_buys(
+        min_amount=OG88_BIG_BUY_THRESHOLD,
+        limit=5
+    )
+    if events is None:
+        logger.warning("Unable to fetch recent OG88 buys.")
+        return
+    if not events:
+        return
+
+    last_seen_hash = buy_state.get("last_hash")
+    if last_seen_hash is None:
+        buy_state["last_hash"] = events[0].get("transaction_hash")
+        logger.info("Initialized big buy watch with tx %s", buy_state["last_hash"])
+        return
+
+    new_events = []
+    for event in events:
+        tx_hash = event.get("transaction_hash")
+        if not tx_hash or tx_hash == last_seen_hash:
+            break
+        new_events.append(event)
+
+    if not new_events:
+        return
+
+    buy_state["last_hash"] = new_events[0].get("transaction_hash") or last_seen_hash
+
+    for event in reversed(new_events):
+        await broadcast_big_buy_alert(event, subscribers, context)
+
+
+async def broadcast_big_buy_alert(event: dict, subscribers: Set[int], context: ContextTypes.DEFAULT_TYPE):
+    """Send a big buy alert to all subscribers."""
+    amount = event.get("amount") or Decimal("0")
+    amount_str = format_token_amount(amount)
+    price_data = wchain_api.get_og88_price() or {}
+
+    usd_display = "N/A"
+    wco_display = "N/A"
+
+    try:
+        price_usd = price_data.get("price_usd")
+        if price_usd not in (None, "", 0):
+            usd_value = amount * Decimal(str(price_usd))
+            usd_display = f"${usd_value:,.2f}"
+    except (InvalidOperation, TypeError, ValueError):
+        pass
+
+    try:
+        price_wco = price_data.get("price_wco")
+        if price_wco not in (None, "", 0):
+            wco_value = amount * Decimal(str(price_wco))
+            wco_display = f"{format_token_amount(wco_value)} WCO"
+    except (InvalidOperation, TypeError, ValueError):
+        pass
+
+    buyer = event.get("to", {}).get("hash") or "Unknown"
+    method = event.get("method") or "swap"
+    timestamp = format_timestamp(event.get("timestamp"))
+    tx_hash = event.get("transaction_hash", "")
+    tx_url = f"{SCAN_BASE_URL}/tx/{tx_hash}" if tx_hash else SCAN_BASE_URL
+
+    message = (
+        "🐋 **OG88 BIG BUY ALERT** 🐋\n"
+        f"{amount_str} ANDA gobbled up!\n"
+        f"💰 USD Value: {usd_display}\n"
+        f"🪙 WCO Value: {wco_display}\n\n"
+        f"Buyer: `{buyer}`\n"
+        f"Method: {method}\n"
+        f"Time: {timestamp}\n"
+        f"Tx: [View on W-Scan]({tx_url})"
+    )
+
+    for chat_id in list(subscribers):
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
+        except Forbidden:
+            subscribers.remove(chat_id)
+            logger.warning("Removed chat %s from big buy alerts (forbidden).", chat_id)
+        except Exception as exc:
+            logger.warning("Unable to send big buy alert to %s: %s", chat_id, exc)
+
 def main():
     """Start the bot."""
     if not TELEGRAM_BOT_TOKEN:
@@ -562,20 +577,17 @@ def main():
     # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("wco", wco_command))
-    application.add_handler(CommandHandler("wave", wave_command))
-    application.add_handler(CommandHandler("OG88", og88_command))
-    application.add_handler(CommandHandler("ogsupply", ogsupply_command))
-    application.add_handler(CommandHandler("buy", buy_command))
-    application.add_handler(CommandHandler("burnwatch", burnwatch_command))
-    
-    # Keep old commands for backward compatibility
     application.add_handler(CommandHandler("price", price_command))
     application.add_handler(CommandHandler("supply", supply_command))
+    application.add_handler(CommandHandler("holders", holders_command))
+    application.add_handler(CommandHandler("burnwatch", burnwatch_command))
+    application.add_handler(CommandHandler("buys", buys_command))
     
     # Initialize burn watch data structures
     application.bot_data.setdefault("burn_watch_subscribers", set())
     application.bot_data.setdefault("burn_watch_state", {"last_hash": None})
+    application.bot_data.setdefault("big_buy_subscribers", set())
+    application.bot_data.setdefault("big_buy_state", {"last_hash": None})
     
     # Schedule burn monitoring job
     job_queue.run_repeating(
@@ -583,9 +595,14 @@ def main():
         interval=BURN_MONITOR_POLL_SECONDS,
         first=10
     )
+    job_queue.run_repeating(
+        monitor_big_buys,
+        interval=OG88_BUY_MONITOR_POLL_SECONDS,
+        first=15
+    )
     
     # Start the bot
-    print("🤖 W-Chain Bot is starting...")
+    print("🤖 OG88 Meme Bot is starting...")
     print("Press Ctrl+C to stop the bot")
     
     try:
