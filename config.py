@@ -38,6 +38,7 @@ OG88_TOKEN_ADDRESS = _get_env('OG88_TOKEN_ADDRESS', '0xD1841fC048b488d92fdF73624
 BURN_WALLET_ADDRESS = _get_env('BURN_WALLET_ADDRESS', '0x000000000000000000000000000000000000dEaD').lower()
 BURN_MONITOR_POLL_SECONDS = int(_get_env('BURN_MONITOR_POLL_SECONDS', '60'))
 BURN_ALERT_ANIMATION_URL = (_get_env('BURN_ALERT_ANIMATION_URL', '') or '').strip() or None
+BURN_ALERT_VIDEO_PATH = (_get_env('BURN_ALERT_VIDEO_PATH', 'Assets/burn.mp4') or '').strip() or None
 
 # Cache settings
 CACHE_TTL = 120  # 2 minutes for supply info
