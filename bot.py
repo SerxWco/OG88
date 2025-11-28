@@ -34,6 +34,7 @@ wchain_api = WChainAPI()
 # Burn addresses to include wherever aggregate burn totals are required
 BURN_ADDRESSES: Set[str] = {BURN_WALLET_ADDRESS}
 SCAN_BASE_URL = "https://scan.w-chain.com"
+OG88_CONTRACT_ADDRESS = "0xD1841fC048b488d92fdF73624a2128D10A847E88"
 
 def format_number(num: float, decimals: int = 2) -> str:
     """Format large numbers with appropriate suffixes"""
@@ -160,6 +161,7 @@ original meme coin of W Chain.
 /holders - Wallet count pulled from W-Scan
 /burnwatch - Toggle burn alerts for the panda furnace
 /buys - Subscribe to >100 ANDA buy alerts
+/ca - OG88 contract address
 
 Use /price or /supply for the fastest status check. 🔥
 """
@@ -177,6 +179,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /holders - Total OG88 holder count
 /burnwatch - Subscribe/unsubscribe from burn alerts
 /buys - Subscribe/unsubscribe from big buy alerts (>100 ANDA)
+/ca - Quick access to the OG88 contract
 
 **Data Sources**
 • OG88 price feed (Railway OG88 API)
@@ -247,6 +250,18 @@ async def supply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message += "Fixed supply + buybacks eating the rest = your bags about to get thicc 🚀\n"
     message += "#OG88 #PandaPrinter"
 
+    await update.message.reply_text(message, parse_mode='Markdown')
+
+
+async def contract_address_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Share the OG88 contract address."""
+    if not update.message:
+        return
+    message = (
+        "📜 **OG88 Contract Address**\n\n"
+        f"`{OG88_CONTRACT_ADDRESS}`\n\n"
+        "Add it to your wallet or share with fellow pandas."
+    )
     await update.message.reply_text(message, parse_mode='Markdown')
 
 
@@ -616,6 +631,7 @@ def main():
     application.add_handler(CommandHandler("holders", holders_command))
     application.add_handler(CommandHandler("burnwatch", burnwatch_command))
     application.add_handler(CommandHandler("buys", buys_command))
+    application.add_handler(CommandHandler("ca", contract_address_command))
     
     # Initialize burn watch data structures
     application.bot_data.setdefault("burn_watch_subscribers", set())
