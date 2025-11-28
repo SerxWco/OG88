@@ -200,25 +200,30 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     price_usd = float(price_data.get("price_usd") or 0)
-    price_wco = float(price_data.get("price_wco") or 0)
     market_cap = price_data.get("market_cap")
     last_updated = format_timestamp(price_data.get("last_updated"))
 
-    message = "💰 **OG88 Price**\n\n"
-    message += f"**USD:** {format_price(price_usd)}\n"
-    message += f"**WCO:** {format_wco_price(price_wco)} WCO\n"
+    price_display = format_price(price_usd)
 
+    cap_display = "N/A"
     if market_cap not in (None, "", 0):
         try:
             cap_value = float(market_cap)
-            message += f"**Market Cap:** ${format_number(cap_value, 2)}\n"
+            cap_display = f"${format_number(cap_value, 2)}"
         except (ValueError, TypeError):
             pass
 
-    if last_updated and last_updated != "Unknown":
-        message += f"\n🕒 Updated: {last_updated}\n"
+    timestamp_display = last_updated if last_updated and last_updated != "Unknown" else None
 
-    message += "\n📊 *Data from OG88 Price Oracle*"
+    message = "🚨 OG88 JUST WOKE UP HUNGRY AF 🐼🔥\n"
+    message += f"💰 Price: {price_display} – still stupid cheap, fix that\n"
+    message += f"💥 Market Cap: ONLY {cap_display} – about to get wrecked upwards\n"
+    if timestamp_display:
+        message += f"🕒 {timestamp_display}\n"
+    else:
+        message += "🕒 Timestamp unavailable\n"
+    message += "Buyback burns + panda army loading…"
+
     await update.message.reply_text(message, parse_mode='Markdown')
 
 async def supply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
