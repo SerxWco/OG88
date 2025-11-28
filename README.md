@@ -7,7 +7,7 @@ A Telegram bot dedicated to OG88 (a.k.a. ANDA), the original meme coin on W Chai
 - **Supply + burn overview** – `/supply` summarizes total minted, burned forever, and circulating OG88
 - **Holder stats** – `/holders` displays the on-chain holder and transfer counts straight from W-Scan
 - **Burn alerts** – `/burnwatch` lets chats subscribe/unsubscribe from OG88 burn events (with optional animation/video attachments)
-- **Big buy alerts** – `/buys` subscribes chats to whale alerts when purchases exceed the configured ANDA threshold; `/buys latest` shows recent qualifying buys on demand
+- **Big buy alerts** – `/buys` subscribes chats to whale alerts when purchases exceed the configured OG88 threshold; `/buys latest` shows recent qualifying buys on demand
 
 ## Commands at a Glance
 ```
@@ -22,7 +22,7 @@ A Telegram bot dedicated to OG88 (a.k.a. ANDA), the original meme coin on W Chai
 
 ## Alert Subscriptions
 - `/burnwatch` – toggles OG88 burn notifications sent whenever the configured burn wallet receives tokens. Use `/burnwatch status` or `/burnwatch off` to manage the subscription.
-- `/buys` – toggles whale alerts whenever a transfer *from* one of the configured liquidity pool contracts to a buyer wallet exceeds the threshold (default: 100 ANDA). Supports `/buys status`, `/buys off`, and `/buys latest`.
+- `/buys` – toggles whale alerts whenever a transfer *from* one of the configured liquidity pool contracts to a buyer wallet exceeds the threshold (default: 100 OG88). Supports `/buys status`, `/buys off`, and `/buys latest`.
 
 ## Configuration
 Create a `.env` file (or set environment variables) with at least the Telegram token. Optional values let you tune the alert system.
@@ -31,7 +31,7 @@ Create a `.env` file (or set environment variables) with at least the Telegram t
 | --- | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | ✅ | Token from @BotFather |
 | `OG88_LIQUIDITY_ADDRESSES` | ⚙️ | Comma-separated list of pool addresses treated as sellers (defaults to the WLP V2 contract) |
-| `OG88_BIG_BUY_THRESHOLD` | ⚙️ | Minimum ANDA amount (Decimal) that triggers a whale alert (default `100`) |
+| `OG88_BIG_BUY_THRESHOLD` | ⚙️ | Minimum OG88 amount (Decimal) that triggers a whale alert (default `100`) |
 | `OG88_BUY_MONITOR_POLL_SECONDS` | ⚙️ | Poll frequency for whale alerts (defaults to `BURN_MONITOR_POLL_SECONDS`) |
 | `BURN_WALLET_ADDRESS` | ⚙️ | Burn wallet to monitor (defaults to `0x0000…dEaD`) |
 | `BURN_MONITOR_POLL_SECONDS` | ⚙️ | Poll frequency for burn alerts (default `60`) |
