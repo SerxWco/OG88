@@ -497,27 +497,12 @@ async def broadcast_burn_alert(transaction: dict, subscribers: Set[int], context
             usd_display = f"${usd_value:,.2f}"
     except (InvalidOperation, TypeError, ValueError):
         pass
-    timestamp = format_timestamp(transaction.get("timestamp"))
-    tx_hash = transaction.get("transaction_hash", "")
-    tx_url = f"https://scan.w-chain.com/tx/{tx_hash}" if tx_hash else "https://scan.w-chain.com"
-    from_address = transaction.get("from", {}).get("hash", "Unknown")
-    block_number = transaction.get("block_number", "N/A")
-    token_address_display = (
-        token.get("hash")
-        or token.get("address")
-        or OG88_TOKEN_ADDRESS
-    )
     message = (
-        "🔥🔥🔥 OG88 BURN ALERT 🔥🔥🔥\n"
-        "The panda is hungry… and someone just fed the fire. 🔥🐼\n\n"
-        f"💣 Burned Amount: {amount_str} OG88\n"
-        f"💰 USD Value: {usd_display}\n"
-        f"🏷️ Token: {token_address_display}\n\n"
-        f"👤 From: {from_address}\n"
-        f"⛓️ Block: {block_number}\n"
-        f"🕒 Time: {timestamp}\n\n"
-        "🔍 Transaction:\n"
-        f"👉 [View on W-Scan]({tx_url})\n"
+        f"🚨🚨 PANDA JUST ATE {amount_str} OG88 AND SPIT OUT THE ASHES 🔥🐼\n"
+        f"{amount_str} OG88 ({usd_display}) PERMANENTLY DELETED FOREVER\n"
+        "Supply just got even tighter while you were scrolling\n"
+        "Every burn = richer holders 😈\n"
+        "#OG88 #BurnPrinterGoBrrrrr"
     )
     local_video_path = Path(BURN_ALERT_VIDEO_PATH) if BURN_ALERT_VIDEO_PATH else None
     local_video_available = bool(local_video_path and local_video_path.is_file())
@@ -525,22 +510,24 @@ async def broadcast_burn_alert(transaction: dict, subscribers: Set[int], context
         logger.warning("Burn alert video not found at %s", BURN_ALERT_VIDEO_PATH)
     for chat_id in list(subscribers):
         try:
-            await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
-            if BURN_ALERT_ANIMATION_URL:
-                caption = f"🔥 {amount_str} OG88 burned!"
-                await context.bot.send_animation(
-                    chat_id=chat_id,
-                    animation=BURN_ALERT_ANIMATION_URL,
-                    caption=caption
-                )
-            elif local_video_available and local_video_path:
-                caption = f"🔥 {amount_str} OG88 burned!"
+            if local_video_available and local_video_path:
                 with local_video_path.open("rb") as animation_file:
                     await context.bot.send_animation(
                         chat_id=chat_id,
                         animation=animation_file,
-                        caption=caption
+                        caption=message,
+                        parse_mode='Markdown'
                     )
+                continue
+            if BURN_ALERT_ANIMATION_URL:
+                await context.bot.send_animation(
+                    chat_id=chat_id,
+                    animation=BURN_ALERT_ANIMATION_URL,
+                    caption=message,
+                    parse_mode='Markdown'
+                )
+                continue
+            await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
         except Forbidden:
             subscribers.remove(chat_id)
             logger.warning("Removed chat %s from burn alerts (forbidden).", chat_id)
