@@ -105,6 +105,44 @@ def ensure_big_buy_subscribers(bot_data: dict) -> Set[int]:
     return bot_data["big_buy_subscribers"]
 
 
+async def ensure_channel_admin(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    action_description: str
+) -> bool:
+    """
+    Ensure the user invoking a command is allowed to manage chat-level settings.
+    Non-admins in group chats cannot enable or disable shared alerts.
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.message
+
+    if not chat or not user or not message:
+        return False
+
+    if chat.type == "private":
+        return True
+
+    try:
+        member = await context.bot.get_chat_member(chat.id, user.id)
+    except Exception as exc:
+        logger.warning(
+            "Unable to verify admin status for user %s in chat %s: %s",
+            user.id,
+            chat.id,
+            exc
+        )
+        await message.reply_text("⚠️ I couldn't verify your admin status. Please try again.")
+        return False
+
+    if getattr(member, "status", "") not in {"administrator", "creator"}:
+        await message.reply_text(f"❌ Only channel admins can {action_description}.")
+        return False
+
+    return True
+
+
 def normalize_token_amount(raw_value: str, decimals: int) -> Decimal:
     """Return a Decimal token amount given raw blockchain value and decimals."""
     try:
@@ -293,7 +331,10 @@ async def burnwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subscribers = ensure_burn_subscribers(context.application.bot_data)
     burn_state = ensure_burn_state(context.application.bot_data)
     action = (context.args[0].lower() if context.args else "").strip()
+    manage_description = "enable or disable burn alerts"
     if action in {"off", "stop", "unsubscribe"}:
+        if not await ensure_channel_admin(update, context, manage_description):
+            return
         if chat_id in subscribers:
             subscribers.remove(chat_id)
             await update.message.reply_text("🛑 Burn alerts disabled for this chat.")
@@ -307,6 +348,10 @@ async def burnwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📊 Burn alert status: {status}. Total subscribers: {count}."
         )
         return
+
+    if not await ensure_channel_admin(update, context, manage_description):
+        return
+
     if chat_id in subscribers:
         await update.message.reply_text("✅ Burn alerts already enabled for this chat.")
         return
@@ -341,8 +386,11 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buy_state = ensure_big_buy_state(context.application.bot_data)
     action = (context.args[0].lower() if context.args else "").strip()
     threshold_display = format_token_amount(OG88_BIG_BUY_THRESHOLD)
+    manage_description = "enable or disable big buy alerts"
 
     if action in {"off", "stop", "unsubscribe"}:
+        if not await ensure_channel_admin(update, context, manage_description):
+            return
         if chat_id in subscribers:
             subscribers.remove(chat_id)
             await update.message.reply_text("🛑 Big buy alerts disabled for this chat.")
@@ -375,6 +423,9 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = "🐋 **Latest Big Buys**\n\n"
         message += "\n".join(format_buy_event_summary(event) for event in events)
         await update.message.reply_text(message, parse_mode='Markdown')
+        return
+
+    if not await ensure_channel_admin(update, context, manage_description):
         return
 
     if chat_id in subscribers:
