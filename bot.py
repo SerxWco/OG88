@@ -14,6 +14,7 @@ from config import (
     BURN_MONITOR_POLL_SECONDS,
     BURN_ALERT_ANIMATION_URL,
     BURN_ALERT_VIDEO_PATH,
+    BIG_BUY_ALERT_ANIMATION_URL,
     BIG_BUY_ALERT_VIDEO_PATH,
     OG88_BIG_BUY_THRESHOLD,
     OG88_BUY_MONITOR_POLL_SECONDS,
@@ -559,20 +560,32 @@ async def broadcast_big_buy_alert(event: dict, subscribers: Set[int], context: C
 
     video_path = Path(BIG_BUY_ALERT_VIDEO_PATH) if BIG_BUY_ALERT_VIDEO_PATH else None
     video_available = bool(video_path and video_path.is_file())
+    animation_url = BIG_BUY_ALERT_ANIMATION_URL
+
     if BIG_BUY_ALERT_VIDEO_PATH and not video_available:
         logger.warning("Big buy alert video not found at %s", BIG_BUY_ALERT_VIDEO_PATH)
 
+    caption = message
     for chat_id in list(subscribers):
         try:
-            await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
             if video_available and video_path:
-                caption = f"🐼 {amount_str} OG88 buy!"
                 with video_path.open("rb") as animation_file:
                     await context.bot.send_animation(
                         chat_id=chat_id,
                         animation=animation_file,
-                        caption=caption
+                        caption=caption,
+                        parse_mode='Markdown'
                     )
+                continue
+            if animation_url:
+                await context.bot.send_animation(
+                    chat_id=chat_id,
+                    animation=animation_url,
+                    caption=caption,
+                    parse_mode='Markdown'
+                )
+                continue
+            await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
         except Forbidden:
             subscribers.remove(chat_id)
             logger.warning("Removed chat %s from big buy alerts (forbidden).", chat_id)
