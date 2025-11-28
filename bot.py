@@ -140,7 +140,7 @@ def format_buy_event_summary(event: dict) -> str:
     tx_url = f"{SCAN_BASE_URL}/tx/{tx_hash}" if tx_hash else SCAN_BASE_URL
 
     summary = (
-        f"• `{buyer}` scooped *{amount_str} ANDA*\n"
+        f"• `{buyer}` scooped *{amount_str} OG88*\n"
         f"  🕒 {timestamp}\n"
     )
     if tx_hash:
@@ -160,7 +160,7 @@ original meme coin of W Chain.
 /supply - Current total vs burned supply
 /holders - Wallet count pulled from W-Scan
 /burnwatch - Toggle burn alerts for the panda furnace
-/buys - Subscribe to >100 ANDA buy alerts
+/buys - Subscribe to >100 OG88 buy alerts
 /ca - OG88 contract address
 
 Use /price or /supply for the fastest status check. 🔥
@@ -178,7 +178,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /supply - Total / burned / circulating snapshot
 /holders - Total OG88 holder count
 /burnwatch - Subscribe/unsubscribe from burn alerts
-/buys - Subscribe/unsubscribe from big buy alerts (>100 ANDA)
+/buys - Subscribe/unsubscribe from big buy alerts (>100 OG88)
 /ca - Quick access to the OG88 contract
 
 **Data Sources**
@@ -354,7 +354,7 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         count = len(subscribers)
         status = "subscribed" if chat_id in subscribers else "not subscribed"
         await update.message.reply_text(
-            f"📊 Big buy alerts are {status}. Threshold: {threshold_display} ANDA. "
+            f"📊 Big buy alerts are {status}. Threshold: {threshold_display} OG88. "
             f"Total subscribers: {count}."
         )
         return
@@ -369,7 +369,7 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if not events:
             await update.message.reply_text(
-                f"ℹ️ No OG88 buys above {threshold_display} ANDA in the latest blocks."
+                f"ℹ️ No OG88 buys above {threshold_display} OG88 in the latest blocks."
             )
             return
         message = "🐋 **Latest Big Buys**\n\n"
@@ -379,14 +379,14 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if chat_id in subscribers:
         await update.message.reply_text(
-            f"✅ Big buy alerts already enabled for {threshold_display}+ ANDA."
+            f"✅ Big buy alerts already enabled for {threshold_display}+ OG88."
         )
         return
 
     subscribers.add(chat_id)
     await update.message.reply_text(
         "🐼 Panda scouts activated! You'll be pinged whenever "
-        f"{threshold_display}+ ANDA are purchased."
+        f"{threshold_display}+ OG88 are purchased."
     )
 
     if buy_state.get("last_hash") is None:
