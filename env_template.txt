@@ -10,5 +10,6 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 # BURN_MONITOR_POLL_SECONDS=60
 # BURN_ALERT_ANIMATION_URL=https://example.com/path/to/animation.gif
 # BURN_ALERT_VIDEO_PATH=Assets/burn.mp4
+# BIG_BUY_ALERT_ANIMATION_URL=https://example.com/path/to/buy.gif
 # BIG_BUY_ALERT_VIDEO_PATH=Assets/buy.mp4
 
