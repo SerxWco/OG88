@@ -240,12 +240,13 @@ async def supply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     burned_display = format_supply_value(supply_info.get("burned"))
     circulating_display = format_supply_value(supply_info.get("circulating_supply"))
 
-    message = "📦 **OG88 Supply**\n\n"
-    message += f"📉 Circulating: {circulating_display} ANDA\n"
-    message += f"🔥 Burned Forever: {burned_display} ANDA\n"
-    message += f"📦 Total Minted: {total_display} ANDA\n"
+    message = "🐼 OG88 SUPPLY IS INSANE RIGHT NOW\n"
+    message += f"✅ Circulating: {circulating_display} ANDA (basically maxed)\n"
+    message += f"🔥 Burned: {burned_display} OG88 sent to hell forever\n"
+    message += f"📦 Total ever: ONLY {total_display} OG88\n"
+    message += "Fixed supply + buybacks eating the rest = your bags about to get thicc 🚀\n"
+    message += "#OG88 #PandaPrinter"
 
-    message += "\n📊 *Data from W-Chain Explorer*"
     await update.message.reply_text(message, parse_mode='Markdown')
 
 
