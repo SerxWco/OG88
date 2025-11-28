@@ -8,11 +8,13 @@ A Telegram bot dedicated to OG88 (a.k.a. ANDA), the original meme coin on W Chai
 - **Holder stats** – `/holders` displays the on-chain holder and transfer counts straight from W-Scan
 - **Burn alerts** – `/burnwatch` lets chats subscribe/unsubscribe from OG88 burn events (with optional animation/video attachments)
 - **Big buy alerts** – `/buys` subscribes chats to whale alerts when purchases exceed the configured OG88 threshold; `/buys latest` shows recent qualifying buys on demand
+- **Token overview** – `/info` bundles price, supply, contract, and the official site link
 
 ## Commands at a Glance
 ```
 /start      # Welcome message + quick links
 /help       # Command reference and tips
+/info       # OG88 basics (price, supply, holders, site, contract)
 /price      # OG88 price in USD and WCO
 /supply     # Total vs burned vs circulating OG88
 /holders    # Total holder count + transfer count
