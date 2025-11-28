@@ -230,6 +230,88 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     await update.message.reply_text(help_message, parse_mode='Markdown')
 
+async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Return a consolidated OG88 overview with key metrics and links."""
+    if not update.message:
+        return
+
+    price_data = wchain_api.get_og88_price() or {}
+    supply_info = wchain_api.get_og88_supply_overview(burn_addresses=BURN_ADDRESSES)
+    counters = wchain_api.get_og88_counters() or {}
+
+    price_display = "N/A"
+    price_usd_value = price_data.get("price_usd")
+    if price_usd_value not in (None, "", 0):
+        try:
+            price_display = format_price(float(price_usd_value))
+        except (ValueError, TypeError):
+            price_display = "N/A"
+
+    wco_display = "N/A"
+    price_wco_value = price_data.get("price_wco")
+    if price_wco_value not in (None, "", 0):
+        try:
+            wco_display = f"{format_wco_price(float(price_wco_value))} WCO"
+        except (ValueError, TypeError):
+            wco_display = "N/A"
+
+    market_cap_display = "N/A"
+    market_cap_value = price_data.get("market_cap")
+    if market_cap_value not in (None, "", 0):
+        try:
+            market_cap_display = f"${format_number(float(market_cap_value), 2)}"
+        except (ValueError, TypeError):
+            market_cap_display = "N/A"
+
+    total_supply_display = "N/A"
+    burned_display = "N/A"
+    circulating_display = "N/A"
+    if supply_info:
+        total_supply_display = format_supply_value(supply_info.get("total_supply"))
+        burned_display = format_supply_value(supply_info.get("burned"))
+        circulating_display = format_supply_value(supply_info.get("circulating_supply"))
+
+    holders_display = "N/A"
+    transfers_display = "N/A"
+    try:
+        holders_count = counters.get("token_holders_count")
+        if holders_count not in (None, ""):
+            holders_display = f"{int(holders_count):,}"
+        transfers_count = counters.get("transfers_count")
+        if transfers_count not in (None, ""):
+            transfers_display = f"{int(transfers_count):,}"
+    except (ValueError, TypeError):
+        pass
+
+    timestamp_display = format_timestamp(price_data.get("last_updated"))
+    if timestamp_display == "Unknown":
+        timestamp_display = None
+
+    message = (
+        "🐼 **OG88 Quick Info**\n\n"
+        f"💰 Price: {price_display} | {wco_display}\n"
+        f"🏦 Market Cap: {market_cap_display}\n"
+        f"📦 Total Supply: {total_supply_display} OG88\n"
+        f"🔥 Burned: {burned_display} OG88\n"
+        f"🚀 Circulating: {circulating_display} OG88\n"
+        f"👥 Holders: {holders_display}\n"
+        f"🔁 Transfers: {transfers_display}\n"
+    )
+
+    if timestamp_display:
+        message += f"🕒 Updated: {timestamp_display}\n"
+
+    message += (
+        f"📜 Contract: `{OG88_CONTRACT_ADDRESS}`\n"
+        "🌐 Site: [og88.meme](https://og88.meme)\n"
+    )
+
+    await update.message.reply_text(
+        message,
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
 async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Return OG88 price information in USD and WCO."""
     await update.message.reply_text("🔄 Fetching OG88 price data...")
@@ -667,6 +749,7 @@ def main():
     application.add_handler(CommandHandler("price", price_command))
     application.add_handler(CommandHandler("supply", supply_command))
     application.add_handler(CommandHandler("holders", holders_command))
+    application.add_handler(CommandHandler("info", info_command))
     application.add_handler(CommandHandler("burnwatch", burnwatch_command))
     application.add_handler(CommandHandler("buys", buys_command))
     application.add_handler(CommandHandler("ca", contract_address_command))
