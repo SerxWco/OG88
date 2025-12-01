@@ -16,7 +16,7 @@ from config import (
     BURN_ALERT_VIDEO_PATH,
     BIG_BUY_ALERT_ANIMATION_URL,
     BIG_BUY_ALERT_VIDEO_PATH,
-    OG88_BIG_BUY_THRESHOLD,
+    OG88_BIG_BUY_THRESHOLD_USD,
     OG88_BUY_MONITOR_POLL_SECONDS,
     OG88_LIQUIDITY_ADDRESSES,
 )
@@ -168,6 +168,35 @@ def format_supply_value(amount: Optional[Decimal]) -> str:
     return format_token_amount(amount)
 
 
+def format_usd_threshold() -> str:
+    """Return the configured USD buy threshold with two decimal places."""
+    return f"${float(OG88_BIG_BUY_THRESHOLD_USD):,.2f}"
+
+
+def compute_big_buy_token_threshold(price_data: Optional[dict]) -> Optional[Decimal]:
+    """Convert the USD big buy threshold into OG88 units using the latest price."""
+    if not price_data:
+        return None
+    price_value = price_data.get("price_usd")
+    if price_value in (None, "", 0):
+        return None
+    try:
+        price_decimal = Decimal(str(price_value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if price_decimal <= 0:
+        return None
+    return OG88_BIG_BUY_THRESHOLD_USD / price_decimal
+
+
+def format_buy_threshold_summary(token_amount: Optional[Decimal]) -> str:
+    """Describe the buy alert threshold in USD and approximate OG88."""
+    usd_display = format_usd_threshold()
+    if token_amount is None:
+        return f"{usd_display} (awaiting price feed for OG88 amount)"
+    return f"{usd_display} (~{format_token_amount(token_amount)} OG88)"
+
+
 def format_buy_event_summary(event: dict) -> str:
     """Return a Markdown snippet describing a big buy event."""
     amount = event.get("amount") or Decimal("0")
@@ -187,7 +216,7 @@ def format_buy_event_summary(event: dict) -> str:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
-    welcome_message = """
+    welcome_message = f"""
 🐼 **OG88 Meme Bot**
 
 Welcome to the OG88 panda command center. This bot now focuses 100% on the
@@ -198,7 +227,7 @@ original meme coin of W Chain.
 /supply - Current total vs burned supply
 /holders - Wallet count pulled from W-Scan
 /burnwatch - Toggle burn alerts for the panda furnace
-/buys - Subscribe to >100 OG88 buy alerts
+/buys - Subscribe to >{format_usd_threshold()} buy alerts
 /ca - OG88 contract address
 
 Use /price or /supply for the fastest status check. 🔥
@@ -207,7 +236,7 @@ Use /price or /supply for the fastest status check. 🔥
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
-    help_message = """
+    help_message = f"""
 📖 **OG88 Meme Bot Help**
 
 **Core Commands**
@@ -216,7 +245,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /supply - Total / burned / circulating snapshot
 /holders - Total OG88 holder count
 /burnwatch - Subscribe/unsubscribe from burn alerts
-/buys - Subscribe/unsubscribe from big buy alerts (>100 OG88)
+/buys - Subscribe/unsubscribe from big buy alerts (>{format_usd_threshold()})
 /ca - Quick access to the OG88 contract
 
 **Data Sources**
@@ -467,7 +496,9 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subscribers = ensure_big_buy_subscribers(context.application.bot_data)
     buy_state = ensure_big_buy_state(context.application.bot_data)
     action = (context.args[0].lower() if context.args else "").strip()
-    threshold_display = format_token_amount(OG88_BIG_BUY_THRESHOLD)
+    price_data = wchain_api.get_og88_price()
+    token_threshold = compute_big_buy_token_threshold(price_data)
+    threshold_summary = format_buy_threshold_summary(token_threshold)
     manage_description = "enable or disable big buy alerts"
 
     if action in {"off", "stop", "unsubscribe"}:
@@ -484,14 +515,20 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         count = len(subscribers)
         status = "subscribed" if chat_id in subscribers else "not subscribed"
         await update.message.reply_text(
-            f"📊 Big buy alerts are {status}. Threshold: {threshold_display} OG88. "
+            f"📊 Big buy alerts are {status}. Threshold: {threshold_summary}. "
             f"Total subscribers: {count}."
         )
         return
 
     if action in {"latest", "recent"}:
+        if token_threshold is None:
+            await update.message.reply_text(
+                f"❌ Unable to convert the {format_usd_threshold()} buy threshold into OG88 right now. "
+                "Please try again shortly."
+            )
+            return
         events = wchain_api.get_recent_og88_buys(
-            min_amount=OG88_BIG_BUY_THRESHOLD,
+            min_amount=token_threshold,
             limit=3
         )
         if events is None:
@@ -499,7 +536,7 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if not events:
             await update.message.reply_text(
-                f"ℹ️ No OG88 buys above {threshold_display} OG88 in the latest blocks."
+                f"ℹ️ No OG88 buys above {threshold_summary} in the latest blocks."
             )
             return
         message = "🐋 **Latest Big Buys**\n\n"
@@ -512,19 +549,22 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if chat_id in subscribers:
         await update.message.reply_text(
-            f"✅ Big buy alerts already enabled for {threshold_display}+ OG88."
+            f"✅ Big buy alerts already enabled for buys above {threshold_summary}."
         )
         return
 
     subscribers.add(chat_id)
     await update.message.reply_text(
         "🐼 Panda scouts activated! You'll be pinged whenever "
-        f"{threshold_display}+ OG88 are purchased."
+        f"buys exceed {threshold_summary}."
     )
 
     if buy_state.get("last_hash") is None:
+        if token_threshold is None:
+            logger.info("Skipping big buy initialization because OG88 price is unavailable.")
+            return
         recent_buys = wchain_api.get_recent_og88_buys(
-            min_amount=OG88_BIG_BUY_THRESHOLD,
+            min_amount=token_threshold,
             limit=1
         )
         if recent_buys:
@@ -623,9 +663,15 @@ async def monitor_big_buys(context: ContextTypes.DEFAULT_TYPE):
     if not subscribers or not OG88_LIQUIDITY_ADDRESSES:
         return
 
+    price_data = wchain_api.get_og88_price()
+    token_threshold = compute_big_buy_token_threshold(price_data)
+    if token_threshold is None:
+        logger.warning("Skipping big buy scan: unable to convert USD threshold into OG88.")
+        return
+
     buy_state = ensure_big_buy_state(context.application.bot_data)
     events = wchain_api.get_recent_og88_buys(
-        min_amount=OG88_BIG_BUY_THRESHOLD,
+        min_amount=token_threshold,
         limit=5
     )
     if events is None:
