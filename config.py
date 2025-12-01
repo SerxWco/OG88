@@ -40,6 +40,19 @@ def _get_decimal_env(key: str, default: str) -> Decimal:
         return Decimal(default)
 
 
+def _get_decimal_env_any(keys: List[str], default: str) -> Decimal:
+    """Parse a Decimal using the first valid environment key in the provided list."""
+    for key in keys:
+        raw_value = _get_env(key)
+        if raw_value is None:
+            continue
+        try:
+            return Decimal(raw_value)
+        except (InvalidOperation, ValueError):
+            continue
+    return Decimal(default)
+
+
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN = _get_env('TELEGRAM_BOT_TOKEN')
 
@@ -63,8 +76,11 @@ BIG_BUY_ALERT_VIDEO_PATH = (_get_env('BIG_BUY_ALERT_VIDEO_PATH', 'Assets/buy.mp4
 OG88_TOKEN_ADDRESS = _get_env('OG88_TOKEN_ADDRESS', '0xD1841fC048b488d92fdF73624a2128D10A847E88').lower()
 BURN_WALLET_ADDRESS = _get_env('BURN_WALLET_ADDRESS', '0x000000000000000000000000000000000000dEaD').lower()
 OG88_LIQUIDITY_ADDRESSES = set(_get_env_list('OG88_LIQUIDITY_ADDRESSES', '0xC61856cdf226645eaB487352C031Ec4341993F87'))
-# Interpreted in USD so we can convert to tokens at runtime
-OG88_BIG_BUY_THRESHOLD_USD = _get_decimal_env('OG88_BIG_BUY_THRESHOLD', '50')
+# Interpreted in USD so we can convert to tokens at runtime; support legacy env name
+OG88_BIG_BUY_THRESHOLD_USD = _get_decimal_env_any(
+    ['OG88_BIG_BUY_THRESHOLD_USD', 'OG88_BIG_BUY_THRESHOLD'],
+    '50'
+)
 OG88_BUY_MONITOR_POLL_SECONDS = int(
     _get_env('OG88_BUY_MONITOR_POLL_SECONDS', str(BURN_MONITOR_POLL_SECONDS))
 )
