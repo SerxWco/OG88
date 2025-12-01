@@ -7,7 +7,7 @@ A Telegram bot dedicated to OG88 (a.k.a. ANDA), the original meme coin on W Chai
 - **Supply + burn overview** – `/supply` summarizes total minted, burned forever, and circulating OG88
 - **Holder stats** – `/holders` displays the on-chain holder and transfer counts straight from W-Scan
 - **Burn alerts** – `/burnwatch` lets chats subscribe/unsubscribe from OG88 burn events (with optional animation/video attachments)
-- **Big buy alerts** – `/buys` subscribes chats to whale alerts when purchases exceed the configured OG88 threshold; `/buys latest` shows recent qualifying buys on demand
+- **Big buy alerts** – `/buys` subscribes chats to whale alerts when purchases exceed the configured USD threshold (defaults to $50, converted to OG88 on the fly); `/buys latest` shows recent qualifying buys on demand
 - **Token overview** – `/info` bundles price, supply, contract, and the official site link
 
 ## Commands at a Glance
@@ -19,12 +19,12 @@ A Telegram bot dedicated to OG88 (a.k.a. ANDA), the original meme coin on W Chai
 /supply     # Total vs burned vs circulating OG88
 /holders    # Total holder count + transfer count
 /burnwatch  # Manage burn alert subscriptions (status/off)
-/buys       # Manage big-buy alerts (> threshold)
+/buys       # Manage big-buy alerts (> USD threshold)
 ```
 
 ## Alert Subscriptions
 - `/burnwatch` – toggles OG88 burn notifications sent whenever the configured burn wallet receives tokens. Use `/burnwatch status` or `/burnwatch off` to manage the subscription.
-- `/buys` – toggles whale alerts whenever a transfer *from* one of the configured liquidity pool contracts to a buyer wallet exceeds the threshold (default: 100 OG88). Supports `/buys status`, `/buys off`, and `/buys latest`.
+- `/buys` – toggles whale alerts whenever a transfer *from* one of the configured liquidity pool contracts to a buyer wallet exceeds the USD threshold (default: $50, converted to OG88 at runtime). Supports `/buys status`, `/buys off`, and `/buys latest`.
 
 ## Configuration
 Create a `.env` file (or set environment variables) with at least the Telegram token. Optional values let you tune the alert system.
@@ -33,7 +33,7 @@ Create a `.env` file (or set environment variables) with at least the Telegram t
 | --- | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | ✅ | Token from @BotFather |
 | `OG88_LIQUIDITY_ADDRESSES` | ⚙️ | Comma-separated list of pool addresses treated as sellers (defaults to the WLP V2 contract) |
-| `OG88_BIG_BUY_THRESHOLD` | ⚙️ | Minimum OG88 amount (Decimal) that triggers a whale alert (default `100`) |
+| `OG88_BIG_BUY_THRESHOLD_USD` | ⚙️ | Minimum USD amount (Decimal) that triggers a whale alert (default `50`, converted to OG88 automatically). For backward compatibility the legacy `OG88_BIG_BUY_THRESHOLD` key is also read. |
 | `OG88_BUY_MONITOR_POLL_SECONDS` | ⚙️ | Poll frequency for whale alerts (defaults to `BURN_MONITOR_POLL_SECONDS`) |
 | `BURN_WALLET_ADDRESS` | ⚙️ | Burn wallet to monitor (defaults to `0x0000…dEaD`) |
 | `BURN_MONITOR_POLL_SECONDS` | ⚙️ | Poll frequency for burn alerts (default `60`) |
@@ -53,7 +53,7 @@ All other endpoints (price oracle, explorer API, etc.) are configured in `config
    TELEGRAM_BOT_TOKEN=your_bot_token
    # Optional overrides
    # OG88_LIQUIDITY_ADDRESSES=0xPool1,0xPool2
-   # OG88_BIG_BUY_THRESHOLD=250
+   # OG88_BIG_BUY_THRESHOLD_USD=75  # USD value, converted to OG88 automatically
    # BURN_ALERT_ANIMATION_URL=https://...
    ```
 3. **Start the bot**
@@ -77,7 +77,7 @@ README.md
 
 ## Troubleshooting
 - **Bot silent?** Double-check `TELEGRAM_BOT_TOKEN` and ensure the process is running (`python bot.py`).
-- **No whale alerts?** Confirm `OG88_LIQUIDITY_ADDRESSES` contains the active pool address and that the threshold is realistic relative to current trading volume.
+- **No whale alerts?** Confirm `OG88_LIQUIDITY_ADDRESSES` contains the active pool address and that the USD threshold is realistic relative to current trading volume (lower the value if buys rarely exceed $50).
 - **Missing burn animations?** Ensure the URL/path defined in `BURN_ALERT_ANIMATION_URL` or `BURN_ALERT_VIDEO_PATH` is reachable/readable by the bot.
 - **Missing buy videos?** Confirm `BIG_BUY_ALERT_VIDEO_PATH` points to an accessible file (defaults to `Assets/buy.mp4`).
 
