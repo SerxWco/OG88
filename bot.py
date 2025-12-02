@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Optional, Set
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.error import Forbidden
 from telegram.ext import Application, CommandHandler, ContextTypes
 from wchain_api import WChainAPI
@@ -19,6 +19,7 @@ from config import (
     OG88_BIG_BUY_THRESHOLD_USD,
     OG88_BUY_MONITOR_POLL_SECONDS,
     OG88_LIQUIDITY_ADDRESSES,
+    OG88_GAME_URL,
 )
 
 # Enable logging
@@ -216,6 +217,7 @@ def format_buy_event_summary(event: dict) -> str:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
+    game_line = "\n/game - Launch the OG88 mini-game inside Telegram" if OG88_GAME_URL else ""
     welcome_message = f"""
 🐼 **OG88 Meme Bot**
 
@@ -228,7 +230,7 @@ original meme coin of W Chain.
 /holders - Wallet count pulled from W-Scan
 /burnwatch - Toggle burn alerts for the panda furnace
 /buys - Subscribe to >{format_usd_threshold()} buy alerts
-/ca - OG88 contract address
+/ca - OG88 contract address{game_line}
 
 Use /price or /supply for the fastest status check. 🔥
 """
@@ -236,6 +238,7 @@ Use /price or /supply for the fastest status check. 🔥
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
+    game_line = "\n/game - Play the OG88 mini-game anywhere" if OG88_GAME_URL else ""
     help_message = f"""
 📖 **OG88 Meme Bot Help**
 
@@ -246,7 +249,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /holders - Total OG88 holder count
 /burnwatch - Subscribe/unsubscribe from burn alerts
 /buys - Subscribe/unsubscribe from big buy alerts (>{format_usd_threshold()})
-/ca - Quick access to the OG88 contract
+/ca - Quick access to the OG88 contract{game_line}
 
 **Data Sources**
 • OG88 price feed (Railway OG88 API)
@@ -432,6 +435,43 @@ async def holders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message += "\n📊 *Source: W-Chain Explorer Counters*"
 
     await update.message.reply_text(message, parse_mode='Markdown')
+
+
+async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Share the OG88 mini-game via Telegram's Web App button."""
+    if not update.message:
+        return
+
+    if not OG88_GAME_URL:
+        await update.message.reply_text(
+            "⚠️ The OG88 mini-game URL hasn't been configured yet. "
+            "Set OG88_GAME_URL in your environment to enable this command."
+        )
+        return
+
+    message = (
+        "🎮 **OG88 Crush (Gambo Edition)**\n\n"
+        "Tap a button below to launch the OG88 puzzle. "
+        "If your Telegram client supports Web Apps, use the in-chat launcher; "
+        "otherwise open it in your browser."
+    )
+
+    keyboard_rows = []
+    try:
+        keyboard_rows.append(
+            [InlineKeyboardButton("Launch in Telegram", web_app=WebAppInfo(url=OG88_GAME_URL))]
+        )
+    except Exception:
+        # Some clients might not support WebApp buttons; fall back to link-only.
+        pass
+    keyboard_rows.append([InlineKeyboardButton("Open in Browser", url=OG88_GAME_URL)])
+
+    await update.message.reply_text(
+        message,
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard_rows),
+        disable_web_page_preview=True,
+    )
 
 
 async def burnwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -799,6 +839,7 @@ def main():
     application.add_handler(CommandHandler("burnwatch", burnwatch_command))
     application.add_handler(CommandHandler("buys", buys_command))
     application.add_handler(CommandHandler("ca", contract_address_command))
+    application.add_handler(CommandHandler("game", game_command))
     
     # Initialize burn watch data structures
     application.bot_data.setdefault("burn_watch_subscribers", set())

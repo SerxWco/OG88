@@ -9,6 +9,7 @@ A Telegram bot dedicated to OG88 (a.k.a. ANDA), the original meme coin on W Chai
 - **Burn alerts** – `/burnwatch` lets chats subscribe/unsubscribe from OG88 burn events (with optional animation/video attachments)
 - **Big buy alerts** – `/buys` subscribes chats to whale alerts when purchases exceed the configured USD threshold (defaults to $50, converted to OG88 on the fly); `/buys latest` shows recent qualifying buys on demand
 - **Token overview** – `/info` bundles price, supply, contract, and the official site link
+- **Mini-game launcher** – `/game` drops a Telegram Web App button that opens your hosted OG88 Gambo game
 
 ## Commands at a Glance
 ```
@@ -20,6 +21,7 @@ A Telegram bot dedicated to OG88 (a.k.a. ANDA), the original meme coin on W Chai
 /holders    # Total holder count + transfer count
 /burnwatch  # Manage burn alert subscriptions (status/off)
 /buys       # Manage big-buy alerts (> USD threshold)
+/game       # Launch the OG88 Gambo mini-game
 ```
 
 ## Alert Subscriptions
@@ -40,6 +42,7 @@ Create a `.env` file (or set environment variables) with at least the Telegram t
 | `BURN_ALERT_ANIMATION_URL` | ⚙️ | Optional GIF/animation URL appended to burn alerts |
 | `BURN_ALERT_VIDEO_PATH` | ⚙️ | Optional local video sent with burn alerts (`Assets/burn.mp4` by default) |
 | `BIG_BUY_ALERT_VIDEO_PATH` | ⚙️ | Optional local video sent with big buy alerts (`Assets/buy.mp4` by default) |
+| `OG88_GAME_URL` | ⚙️ | Hosted URL of your Gambo Web App; enables `/game` + Telegram Web App button |
 
 All other endpoints (price oracle, explorer API, etc.) are configured in `config.py` but can be overridden via environment variables if needed.
 
@@ -60,6 +63,16 @@ All other endpoints (price oracle, explorer API, etc.) are configured in `config
    ```bash
    python bot.py
    ```
+
+## Adding the OG88 Gambo Mini-Game
+
+1. **Publish the game build** – In the Gambo.ai dashboard use *Export/Publish* to download the static build for your OG88 game (the preview URL will eventually expire).
+2. **Host the assets** – Upload the exported folder to any static host (Cloudflare Pages, Netlify, Vercel, GitHub Pages, S3 + CloudFront, etc.) and note the HTTPS URL. Make sure it serves over HTTPS or Telegram Web Apps will reject it.
+3. **Expose the URL to the bot** – Set `OG88_GAME_URL=https://your-hosted-game.example` inside `.env` (or as an environment variable in your deployment).
+4. **Restart the bot** – Restart `python bot.py` (or your process manager) so the new env var is loaded.
+5. **Share it via `/game`** – Users can now run `/game` to receive two buttons: a Telegram Web App launcher that opens the game in-chat and a regular browser link as a fallback.
+
+> Tip: if you want the link visible in `/start` and `/help`, keep `OG88_GAME_URL` set. Unset it to hide the command when the game is offline.
 
 ## Data Sources
 - **OG88 price** – Railway-hosted OG88 price API (USD + WCO quotes)

@@ -13,4 +13,5 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 # BURN_ALERT_VIDEO_PATH=Assets/burn.mp4
 # BIG_BUY_ALERT_ANIMATION_URL=https://example.com/path/to/buy.gif
 # BIG_BUY_ALERT_VIDEO_PATH=Assets/buy.mp4
+# OG88_GAME_URL=https://your-hosted-og88-game.example
 
