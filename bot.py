@@ -126,16 +126,14 @@ def build_webapp_markup() -> Optional[InlineKeyboardMarkup]:
     """Return the inline keyboard that launches the OG88 WebApp."""
     if not OG88_WEBAPP_URL:
         return None
-    return InlineKeyboardMarkup(
+    return InlineKeyboardMarkup([
         [
-            [
-                InlineKeyboardButton(
-                    text="🎮 Launch OG88 Bamboo Bash",
-                    web_app=WebAppInfo(url=OG88_WEBAPP_URL)
-                )
-            ]
+            InlineKeyboardButton(
+                text="▶️ Play OG88",
+                web_app=WebAppInfo(url=OG88_WEBAPP_URL)
+            )
         ]
-    )
+    ])
 
 
 def format_recent_webapp_results(history: Deque[dict], limit: int = 5) -> str:
@@ -988,7 +986,7 @@ def main():
     print("Press Ctrl+C to stop the bot")
     
     try:
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        application.run_polling(allowed_updates=["message", "my_chat_member"])
     except KeyboardInterrupt:
         print("\n🛑 Bot stopped by user")
     except Exception as e:
