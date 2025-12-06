@@ -168,7 +168,7 @@ async def ensure_channel_admin(
     """
     chat = update.effective_chat
     user = update.effective_user
-    message = update.message
+    message = update.effective_message
 
     if not chat or not user or not message:
         return False
@@ -268,6 +268,9 @@ def format_buy_event_summary(event: dict) -> str:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
+    message = update.effective_message
+    if not message:
+        return
     welcome_message = f"""
 🐼 **OG88 Meme Bot**
 
@@ -289,10 +292,13 @@ Use /price or /supply for the fastest status check. 🔥
     markup = build_webapp_markup()
     if markup:
         reply_kwargs['reply_markup'] = markup
-    await update.message.reply_text(welcome_message, **reply_kwargs)
+    await message.reply_text(welcome_message, **reply_kwargs)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
+    message = update.effective_message
+    if not message:
+        return
     help_message = f"""
 📖 **OG88 Meme Bot Help**
 
@@ -316,11 +322,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Configure OG88 liquidity pool addresses via `OG88_LIQUIDITY_ADDRESSES`
 • Use `/play recent` to review the last few recorded WebApp scores
     """
-    await update.message.reply_text(help_message, parse_mode='Markdown')
+    await message.reply_text(help_message, parse_mode='Markdown')
 
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Return a consolidated OG88 overview with key metrics and links."""
-    if not update.message:
+    message = update.effective_message
+    if not message:
         return
 
     price_data = wchain_api.get_og88_price() or {}
@@ -375,7 +382,7 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if timestamp_display == "Unknown":
         timestamp_display = None
 
-    message = (
+    response = (
         "🐼 **OG88 Quick Info**\n\n"
         f"💰 Price: {price_display} | {wco_display}\n"
         f"🏦 Market Cap: {market_cap_display}\n"
@@ -387,27 +394,30 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     if timestamp_display:
-        message += f"🕒 Updated: {timestamp_display}\n"
+        response += f"🕒 Updated: {timestamp_display}\n"
 
-    message += (
+    response += (
         f"📜 Contract: `{OG88_CONTRACT_ADDRESS}`\n"
         "🌐 Site: [og88.meme](https://og88.meme)\n"
     )
 
-    await update.message.reply_text(
-        message,
+    await message.reply_text(
+        response,
         parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
 async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Return OG88 price information in USD and WCO."""
-    await update.message.reply_text("🔄 Fetching OG88 price data...")
+    message = update.effective_message
+    if not message:
+        return
+    await message.reply_text("🔄 Fetching OG88 price data...")
 
     price_data = wchain_api.get_og88_price()
 
     if not price_data:
-        await update.message.reply_text("❌ Unable to fetch OG88 price. Please try again later.")
+        await message.reply_text("❌ Unable to fetch OG88 price. Please try again later.")
         return
 
     price_usd = float(price_data.get("price_usd") or 0)
@@ -426,80 +436,88 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     timestamp_display = last_updated if last_updated and last_updated != "Unknown" else None
 
-    message = "🚨 OG88 JUST WOKE UP HUNGRY AF 🐼🔥\n"
-    message += f"💰 Price: {price_display} – still stupid cheap, fix that\n"
-    message += f"💥 Market Cap: ONLY {cap_display} – about to get wrecked upwards\n"
+    response = "🚨 OG88 JUST WOKE UP HUNGRY AF 🐼🔥\n"
+    response += f"💰 Price: {price_display} – still stupid cheap, fix that\n"
+    response += f"💥 Market Cap: ONLY {cap_display} – about to get wrecked upwards\n"
     if timestamp_display:
-        message += f"🕒 {timestamp_display}\n"
+        response += f"🕒 {timestamp_display}\n"
     else:
-        message += "🕒 Timestamp unavailable\n"
-    message += "Buyback burns + panda army loading…"
+        response += "🕒 Timestamp unavailable\n"
+    response += "Buyback burns + panda army loading…"
 
-    await update.message.reply_text(message, parse_mode='Markdown')
+    await message.reply_text(response, parse_mode='Markdown')
 
 async def supply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get OG88 supply and burn information."""
-    await update.message.reply_text("🔄 Fetching OG88 supply data...")
+    message = update.effective_message
+    if not message:
+        return
+    await message.reply_text("🔄 Fetching OG88 supply data...")
 
     supply_info = wchain_api.get_og88_supply_overview(burn_addresses=BURN_ADDRESSES)
 
     if not supply_info:
-        await update.message.reply_text("❌ Unable to fetch OG88 supply data. Please try again later.")
+        await message.reply_text("❌ Unable to fetch OG88 supply data. Please try again later.")
         return
 
     total_display = format_supply_value(supply_info.get("total_supply"))
     burned_display = format_supply_value(supply_info.get("burned"))
     circulating_display = format_supply_value(supply_info.get("circulating_supply"))
 
-    message = "🐼 OG88 SUPPLY IS INSANE RIGHT NOW\n"
-    message += f"✅ Circulating: {circulating_display} ANDA (basically maxed)\n"
-    message += f"🔥 Burned: {burned_display} OG88 sent to hell forever\n"
-    message += f"📦 Total ever: ONLY {total_display} OG88\n"
-    message += "Fixed supply + buybacks eating the rest = your bags about to get thicc 🚀\n"
-    message += "#OG88 #PandaPrinter"
+    response = "🐼 OG88 SUPPLY IS INSANE RIGHT NOW\n"
+    response += f"✅ Circulating: {circulating_display} ANDA (basically maxed)\n"
+    response += f"🔥 Burned: {burned_display} OG88 sent to hell forever\n"
+    response += f"📦 Total ever: ONLY {total_display} OG88\n"
+    response += "Fixed supply + buybacks eating the rest = your bags about to get thicc 🚀\n"
+    response += "#OG88 #PandaPrinter"
 
-    await update.message.reply_text(message, parse_mode='Markdown')
+    await message.reply_text(response, parse_mode='Markdown')
 
 
 async def contract_address_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Share the OG88 contract address."""
-    if not update.message:
+    message = update.effective_message
+    if not message:
         return
-    message = (
+    response = (
         "📜 **OG88 Contract Address**\n\n"
         f"`{OG88_CONTRACT_ADDRESS}`\n\n"
         "Add it to your wallet or share with fellow pandas."
     )
-    await update.message.reply_text(message, parse_mode='Markdown')
+    await message.reply_text(response, parse_mode='Markdown')
 
 
 async def holders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get OG88 holder and transfer counts."""
-    await update.message.reply_text("🔄 Fetching OG88 holders...")
+    message = update.effective_message
+    if not message:
+        return
+    await message.reply_text("🔄 Fetching OG88 holders...")
 
     counters = wchain_api.get_og88_counters()
     if not counters:
-        await update.message.reply_text("❌ Unable to fetch holder information. Please try again later.")
+        await message.reply_text("❌ Unable to fetch holder information. Please try again later.")
         return
 
     holders_count = int(counters.get('token_holders_count', 0))
     transfers_count = int(counters.get('transfers_count', 0))
 
-    message = "👥 **OG88 Holders**\n\n"
-    message += f"Total Holders: {holders_count:,}\n"
-    message += f"Transfers Recorded: {transfers_count:,}\n"
-    message += "\n📊 *Source: W-Chain Explorer Counters*"
+    response = "👥 **OG88 Holders**\n\n"
+    response += f"Total Holders: {holders_count:,}\n"
+    response += f"Transfers Recorded: {transfers_count:,}\n"
+    response += "\n📊 *Source: W-Chain Explorer Counters*"
 
-    await update.message.reply_text(message, parse_mode='Markdown')
+    await message.reply_text(response, parse_mode='Markdown')
 
 
 async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Launch the OG88 Bamboo Bash Telegram WebApp or show recent scores."""
-    if not update.message:
+    message = update.effective_message
+    if not message:
         return
 
     if not OG88_WEBAPP_URL:
-        await update.message.reply_text(
+        await message.reply_text(
             "⚠️ The OG88 WebApp URL is not configured. Set OG88_WEBAPP_URL in your environment."
         )
         return
@@ -508,7 +526,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if request in {"recent", "scores", "leaderboard"}:
         history = ensure_webapp_history(context.application.bot_data)
         summary = format_recent_webapp_results(history)
-        await update.message.reply_text(summary, parse_mode='Markdown', disable_web_page_preview=True)
+        await message.reply_text(summary, parse_mode='Markdown', disable_web_page_preview=True)
         return
 
     markup = build_webapp_markup()
@@ -519,7 +537,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "and organize tournaments later on.\n\n"
         "Use `/play recent` anytime to see the latest submissions."
     )
-    await update.message.reply_text(
+    await message.reply_text(
         description,
         parse_mode='Markdown',
         reply_markup=markup
@@ -578,7 +596,8 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def burnwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manage OG88 burn alert subscriptions."""
-    if not update.effective_chat or not update.message:
+    message = update.effective_message
+    if not update.effective_chat or not message:
         return
     chat_id = update.effective_chat.id
     subscribers = ensure_burn_subscribers(context.application.bot_data)
@@ -590,14 +609,14 @@ async def burnwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if chat_id in subscribers:
             subscribers.remove(chat_id)
-            await update.message.reply_text("🛑 Burn alerts disabled for this chat.")
+            await message.reply_text("🛑 Burn alerts disabled for this chat.")
         else:
-            await update.message.reply_text("ℹ️ Burn alerts are already disabled here.")
+            await message.reply_text("ℹ️ Burn alerts are already disabled here.")
         return
     if action == "status":
         count = len(subscribers)
         status = "subscribed" if chat_id in subscribers else "not subscribed"
-        await update.message.reply_text(
+        await message.reply_text(
             f"📊 Burn alert status: {status}. Total subscribers: {count}."
         )
         return
@@ -606,10 +625,10 @@ async def burnwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if chat_id in subscribers:
-        await update.message.reply_text("✅ Burn alerts already enabled for this chat.")
+        await message.reply_text("✅ Burn alerts already enabled for this chat.")
         return
     subscribers.add(chat_id)
-    await update.message.reply_text(
+    await message.reply_text(
         "🔥 Burn alerts enabled! You'll be notified whenever OG88 tokens reach "
         f"the burn wallet `{BURN_WALLET_ADDRESS}`.",
         parse_mode='Markdown'
@@ -624,11 +643,12 @@ async def burnwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manage OG88 big buy alert subscriptions."""
-    if not update.effective_chat or not update.message:
+    message = update.effective_message
+    if not update.effective_chat or not message:
         return
 
     if not OG88_LIQUIDITY_ADDRESSES:
-        await update.message.reply_text(
+        await message.reply_text(
             "⚠️ Big buy alerts require OG88 liquidity pool addresses. "
             "Please set OG88_LIQUIDITY_ADDRESSES in your environment."
         )
@@ -648,15 +668,15 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if chat_id in subscribers:
             subscribers.remove(chat_id)
-            await update.message.reply_text("🛑 Big buy alerts disabled for this chat.")
+            await message.reply_text("🛑 Big buy alerts disabled for this chat.")
         else:
-            await update.message.reply_text("ℹ️ Big buy alerts are already disabled here.")
+            await message.reply_text("ℹ️ Big buy alerts are already disabled here.")
         return
 
     if action == "status":
         count = len(subscribers)
         status = "subscribed" if chat_id in subscribers else "not subscribed"
-        await update.message.reply_text(
+        await message.reply_text(
             f"📊 Big buy alerts are {status}. Threshold: {threshold_summary}. "
             f"Total subscribers: {count}."
         )
@@ -664,7 +684,7 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action in {"latest", "recent"}:
         if token_threshold is None:
-            await update.message.reply_text(
+            await message.reply_text(
                 f"❌ Unable to convert the {format_usd_threshold()} buy threshold into OG88 right now. "
                 "Please try again shortly."
             )
@@ -674,29 +694,29 @@ async def buys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             limit=3
         )
         if events is None:
-            await update.message.reply_text("❌ Unable to fetch recent buys. Please try again later.")
+            await message.reply_text("❌ Unable to fetch recent buys. Please try again later.")
             return
         if not events:
-            await update.message.reply_text(
+            await message.reply_text(
                 f"ℹ️ No OG88 buys above {threshold_summary} in the latest blocks."
             )
             return
-        message = "🐋 **Latest Big Buys**\n\n"
-        message += "\n".join(format_buy_event_summary(event) for event in events)
-        await update.message.reply_text(message, parse_mode='Markdown')
+        response = "🐋 **Latest Big Buys**\n\n"
+        response += "\n".join(format_buy_event_summary(event) for event in events)
+        await message.reply_text(response, parse_mode='Markdown')
         return
 
     if not await ensure_channel_admin(update, context, manage_description):
         return
 
     if chat_id in subscribers:
-        await update.message.reply_text(
+        await message.reply_text(
             f"✅ Big buy alerts already enabled for buys above {threshold_summary}."
         )
         return
 
     subscribers.add(chat_id)
-    await update.message.reply_text(
+    await message.reply_text(
         "🐼 Panda scouts activated! You'll be pinged whenever "
         f"buys exceed {threshold_summary}."
     )
