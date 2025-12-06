@@ -85,6 +85,9 @@ OG88_BUY_MONITOR_POLL_SECONDS = int(
     _get_env('OG88_BUY_MONITOR_POLL_SECONDS', str(BURN_MONITOR_POLL_SECONDS))
 )
 
+# Telegram WebApp configuration
+OG88_WEBAPP_URL = (_get_env('OG88_WEBAPP_URL', 'https://og88bamboo.gambo.games/') or '').strip() or None
+
 # Cache settings
 CACHE_TTL = 120  # 2 minutes for supply info
 PRICE_CACHE_TTL = 60  # 1 minute for price data
