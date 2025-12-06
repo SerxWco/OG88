@@ -9,6 +9,7 @@ A Telegram bot dedicated to OG88 (a.k.a. ANDA), the original meme coin on W Chai
 - **Burn alerts** – `/burnwatch` lets chats subscribe/unsubscribe from OG88 burn events (with optional animation/video attachments)
 - **Big buy alerts** – `/buys` subscribes chats to whale alerts when purchases exceed the configured USD threshold (defaults to $50, converted to OG88 on the fly); `/buys latest` shows recent qualifying buys on demand
 - **Token overview** – `/info` bundles price, supply, contract, and the official site link
+- **Telegram WebApp** – `/play` launches the OG88 Bamboo Bash mini-game directly inside Telegram and logs submissions for future tournaments
 
 ## Commands at a Glance
 ```
@@ -20,6 +21,7 @@ A Telegram bot dedicated to OG88 (a.k.a. ANDA), the original meme coin on W Chai
 /holders    # Total holder count + transfer count
 /burnwatch  # Manage burn alert subscriptions (status/off)
 /buys       # Manage big-buy alerts (> USD threshold)
+/play       # Launch the OG88 Bamboo Bash Telegram WebApp
 ```
 
 ## Alert Subscriptions
@@ -40,6 +42,7 @@ Create a `.env` file (or set environment variables) with at least the Telegram t
 | `BURN_ALERT_ANIMATION_URL` | ⚙️ | Optional GIF/animation URL appended to burn alerts |
 | `BURN_ALERT_VIDEO_PATH` | ⚙️ | Optional local video sent with burn alerts (`Assets/burn.mp4` by default) |
 | `BIG_BUY_ALERT_VIDEO_PATH` | ⚙️ | Optional local video sent with big buy alerts (`Assets/buy.mp4` by default) |
+| `OG88_WEBAPP_URL` | ⚙️ | Public HTTPS URL for the OG88 Bamboo Bash Telegram WebApp launcher |
 
 All other endpoints (price oracle, explorer API, etc.) are configured in `config.py` but can be overridden via environment variables if needed.
 
@@ -60,6 +63,12 @@ All other endpoints (price oracle, explorer API, etc.) are configured in `config
    ```bash
    python bot.py
    ```
+
+## Telegram WebApp + Mini-Game
+- Set `OG88_WEBAPP_URL` to the hosted OG88 Bamboo Bash build (defaults to `https://og88bamboo.gambo.games/`).
+- Run `/play` in any chat to display an inline button that opens the WebApp inside Telegram.
+- The bot captures `web_app_data` payloads from the game, stores recent submissions in memory, and acknowledges scores immediately.
+- Use `/play recent` to print the latest recorded runs — helpful for lightweight tournaments until a persistent leaderboard is added.
 
 ## Data Sources
 - **OG88 price** – Railway-hosted OG88 price API (USD + WCO quotes)
