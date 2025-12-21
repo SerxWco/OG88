@@ -17,8 +17,14 @@ except FileNotFoundError:
 
 
 def _get_env(key: str, default: Optional[str] = None) -> Optional[str]:
-    """Read configuration values with precedence: .env cache -> environment -> default."""
-    return _ENV_CACHE.get(key) or os.getenv(key) or default
+    """
+    Read configuration values with precedence:
+    environment -> .env cache -> default.
+
+    This prevents a committed/stale `.env` file from overriding production
+    environment variables (e.g., Railway/Heroku config vars).
+    """
+    return os.getenv(key) or _ENV_CACHE.get(key) or default
 
 
 def _get_env_list(key: str, default: Optional[str] = None) -> List[str]:
