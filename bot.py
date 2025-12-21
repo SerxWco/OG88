@@ -48,9 +48,15 @@ async def post_init(application: Application) -> None:
     """
     try:
         me = await application.bot.get_me()
-        logger.info("Telegram auth OK: @%s (id=%s)", getattr(me, "username", None), getattr(me, "id", None))
-    except TelegramError as exc:
-        logger.error("Telegram auth FAILED (invalid token or revoked bot): %s", exc)
+        logger.info(
+            "Telegram auth OK: @%s (id=%s)",
+            getattr(me, "username", None),
+            getattr(me, "id", None),
+        )
+    except TelegramError:
+        # IMPORTANT: do not log the raw exception string here, because some libraries
+        # include the full bot token in error messages.
+        logger.error("Telegram auth FAILED: token rejected (401) or bot revoked.")
         raise
 
     # If this bot was previously configured with a webhook, clear it for polling deployments.
@@ -1082,8 +1088,11 @@ def main():
         application.run_polling(allowed_updates=allowed_updates)
     except KeyboardInterrupt:
         print("\n🛑 Bot stopped by user")
-    except Exception as e:
-        print(f"❌ Error running bot: {e}")
+    except Exception:
+        # IMPORTANT: do not print the raw exception string here, because some libraries
+        # include the full bot token in error messages.
+        print("❌ Error running bot. Check logs for details (token is not printed).")
+        logger.exception("Bot crashed")
 
 if __name__ == '__main__':
     main()
