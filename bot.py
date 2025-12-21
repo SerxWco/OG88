@@ -41,6 +41,24 @@ OG88_CONTRACT_ADDRESS = "0xD1841fC048b488d92fdF73624a2128D10A847E88"
 WEBAPP_HISTORY_KEY = "webapp_results"
 WEBAPP_HISTORY_LIMIT = 25
 
+async def post_init(application: Application) -> None:
+    """
+    Runs once on startup (before polling starts).
+    Helps Railway logs clearly show whether the bot token is valid and which bot is running.
+    """
+    try:
+        me = await application.bot.get_me()
+        logger.info("Telegram auth OK: @%s (id=%s)", getattr(me, "username", None), getattr(me, "id", None))
+    except TelegramError as exc:
+        logger.error("Telegram auth FAILED (invalid token or revoked bot): %s", exc)
+        raise
+
+    # If this bot was previously configured with a webhook, clear it for polling deployments.
+    try:
+        await application.bot.delete_webhook(drop_pending_updates=True)
+    except TelegramError as exc:
+        logger.warning("Unable to delete Telegram webhook (usually safe to ignore): %s", exc)
+
 def format_number(num: float, decimals: int = 2) -> str:
     """Format large numbers with appropriate suffixes"""
     if num >= 1e9:
@@ -1019,7 +1037,7 @@ def main():
         return
     
     # Create the Application
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    application = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
     job_queue = application.job_queue
     
     # Add command handlers
