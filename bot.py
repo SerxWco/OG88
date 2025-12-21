@@ -1033,8 +1033,8 @@ def main():
         return
 
     if not OG88_WEBAPP_URL:
-        print("Error: OG88_WEBAPP_URL not found. Please set it in your environment variables.")
-        return
+        # Don't block the bot from starting; only /play depends on this.
+        logger.warning("OG88_WEBAPP_URL is not configured; /play will be disabled.")
     
     # Create the Application
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
