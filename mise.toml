@@ -1,0 +1,6 @@
+[settings]
+# Railway's build (via Railpack/mise) can fail to find GitHub artifact
+# attestations for some Python releases, aborting the build before the
+# bot even starts. Attestation verification isn't needed for a trusted,
+# pinned interpreter version, so it's disabled here.
+python.github_attestations = false

@@ -1,13 +1,11 @@
-import json
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-from collections import deque
 from pathlib import Path
-from typing import Deque, Optional, Set
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
-from telegram.error import Forbidden, TelegramError
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from typing import Optional, Set
+from telegram import Update
+from telegram.error import Forbidden
+from telegram.ext import Application, CommandHandler, ContextTypes
 from wchain_api import WChainAPI
 from config import (
     TELEGRAM_BOT_TOKEN,
@@ -21,7 +19,6 @@ from config import (
     OG88_BIG_BUY_THRESHOLD_USD,
     OG88_BUY_MONITOR_POLL_SECONDS,
     OG88_LIQUIDITY_ADDRESSES,
-    OG88_WEBAPP_URL,
 )
 
 # Enable logging
@@ -38,8 +35,6 @@ wchain_api = WChainAPI()
 BURN_ADDRESSES: Set[str] = {BURN_WALLET_ADDRESS}
 SCAN_BASE_URL = "https://scan.w-chain.com"
 OG88_CONTRACT_ADDRESS = "0xD1841fC048b488d92fdF73624a2128D10A847E88"
-WEBAPP_HISTORY_KEY = "webapp_results"
-WEBAPP_HISTORY_LIMIT = 25
 
 def format_number(num: float, decimals: int = 2) -> str:
     """Format large numbers with appropriate suffixes"""
@@ -108,94 +103,6 @@ def ensure_big_buy_subscribers(bot_data: dict) -> Set[int]:
     if "big_buy_subscribers" not in bot_data:
         bot_data["big_buy_subscribers"] = set()
     return bot_data["big_buy_subscribers"]
-
-
-def ensure_webapp_history(bot_data: dict) -> Deque[dict]:
-    """Keep a rolling log of webapp payloads for future tournaments."""
-    if WEBAPP_HISTORY_KEY not in bot_data:
-        bot_data[WEBAPP_HISTORY_KEY] = deque(maxlen=WEBAPP_HISTORY_LIMIT)
-    history = bot_data[WEBAPP_HISTORY_KEY]
-    if isinstance(history, deque):
-        return history
-    # In case something else stored a different type, reset it
-    bot_data[WEBAPP_HISTORY_KEY] = deque(history, maxlen=WEBAPP_HISTORY_LIMIT) if isinstance(history, list) else deque(maxlen=WEBAPP_HISTORY_LIMIT)
-    return bot_data[WEBAPP_HISTORY_KEY]
-
-
-def build_webapp_markup() -> InlineKeyboardMarkup:
-    """Return the inline keyboard that launches the OG88 WebApp."""
-    if not OG88_WEBAPP_URL:
-        raise RuntimeError("OG88_WEBAPP_URL is not configured.")
-    button = InlineKeyboardButton(
-        text="▶️ Play OG88",
-        web_app=WebAppInfo(url=OG88_WEBAPP_URL)
-    )
-    return InlineKeyboardMarkup([[button]])
-
-
-def format_recent_webapp_results(history: Deque[dict], limit: int = 5) -> str:
-    """Summarize the latest WebApp submissions."""
-    if not history:
-        return "ℹ️ No OG88 Bamboo Bash sessions recorded yet. Launch the WebApp with /play."
-    rows = []
-    for idx, entry in enumerate(list(history)[:limit], start=1):
-        display_name = entry.get("display_name") or entry.get("username") or f"User {entry.get('user_id')}"
-        score_value = entry.get("score")
-        if score_value is None:
-            payload = entry.get("payload")
-            if isinstance(payload, dict):
-                score_value = payload.get("score") or payload.get("points")
-        score_display = str(score_value) if score_value not in (None, "") else "data received"
-        timestamp_display = entry.get("timestamp", "recently")
-        rows.append(f"{idx}. {display_name} — {score_display} ({timestamp_display})")
-    leaderboard = "\n".join(rows)
-    return f"🏆 **Latest OG88 Bamboo Bash submissions**\n\n{leaderboard}\n\nSubmit a new run via /play."
-
-
-async def _send_play_response(
-    message,
-    context,
-    text: str,
-    *,
-    parse_mode: Optional[str] = None,
-    disable_web_page_preview: bool = False,
-    reply_markup: InlineKeyboardMarkup,
-) -> None:
-    """
-    Send the /play response with WebApp markup.
-    Falls back to a non-reply message if replying fails (e.g., in channels or topics).
-    """
-    reply_kwargs = {
-        "parse_mode": parse_mode,
-        "disable_web_page_preview": disable_web_page_preview,
-        "reply_markup": reply_markup,
-        "allow_sending_without_reply": True,
-    }
-    try:
-        await message.reply_text(text, **reply_kwargs)
-        return
-    except TelegramError as exc:
-        chat_id = getattr(message, "chat_id", None)
-        logger.warning(
-            "Replying to /play in chat %s failed: %s. Retrying without reply target.",
-            chat_id,
-            exc,
-        )
-    # Remove the reply-only kwarg before fallback
-    reply_kwargs.pop("allow_sending_without_reply", None)
-    send_kwargs = dict(reply_kwargs)
-    send_kwargs["chat_id"] = getattr(message, "chat_id", None)
-    message_thread_id = getattr(message, "message_thread_id", None)
-    if message_thread_id:
-        send_kwargs["message_thread_id"] = message_thread_id
-    try:
-        await context.bot.send_message(text=text, **send_kwargs)
-    except TelegramError as final_exc:
-        logger.error(
-            "Unable to send /play response to chat %s: %s",
-            send_kwargs.get("chat_id"),
-            final_exc,
-        )
 
 
 async def ensure_channel_admin(
@@ -325,16 +232,10 @@ original meme coin of W Chain.
 /burnwatch - Toggle burn alerts for the panda furnace
 /buys - Subscribe to >{format_usd_threshold()} buy alerts
 /ca - OG88 contract address
-/play - Launch OG88 Bamboo Bash WebApp
 
 Use /price or /supply for the fastest status check. 🔥
 """
-    reply_kwargs = {'parse_mode': 'Markdown'}
-    try:
-        reply_kwargs['reply_markup'] = build_webapp_markup()
-    except RuntimeError as exc:
-        logger.error("Unable to attach WebApp markup to /start response: %s", exc)
-    await message.reply_text(welcome_message, **reply_kwargs)
+    await message.reply_text(welcome_message, parse_mode='Markdown')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
@@ -352,7 +253,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /burnwatch - Subscribe/unsubscribe from burn alerts
 /buys - Subscribe/unsubscribe from big buy alerts (>{format_usd_threshold()})
 /ca - Quick access to the OG88 contract
-/play - Open the OG88 Bamboo Bash WebApp inside Telegram
 
 **Data Sources**
 • OG88 price feed (Railway OG88 API)
@@ -362,7 +262,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 **Tips**
 • Use `/buys status` or `/burnwatch status` to confirm subscriptions
 • Configure OG88 liquidity pool addresses via `OG88_LIQUIDITY_ADDRESSES`
-• Use `/play recent` to review the last few recorded WebApp scores
     """
     await message.reply_text(help_message, parse_mode='Markdown')
 
@@ -550,115 +449,6 @@ async def holders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response += "\n📊 *Source: W-Chain Explorer Counters*"
 
     await message.reply_text(response, parse_mode='Markdown')
-
-
-async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Launch the OG88 Bamboo Bash Telegram WebApp or show recent scores."""
-    message = update.effective_message
-    chat = update.effective_chat
-    user = update.effective_user
-
-    if not message:
-        logger.warning("Received /play update without a message payload.")
-        return
-
-    try:
-        markup = build_webapp_markup()
-    except RuntimeError as exc:
-        logger.error("Unable to build WebApp markup for /play: %s", exc)
-        await message.reply_text(
-            "⚠️ The OG88 WebApp is not configured. Please contact an administrator."
-        )
-        return
-
-    request = (context.args[0].lower() if context.args else "").strip()
-    logger.info(
-        "Handling /play command in chat_id=%s (type=%s) from user_id=%s with args=%s",
-        chat.id if chat else "unknown",
-        chat.type if chat else "unknown",
-        user.id if user else "unknown",
-        context.args,
-    )
-
-    if request in {"recent", "scores", "leaderboard"}:
-        history = ensure_webapp_history(context.application.bot_data)
-        summary = format_recent_webapp_results(history)
-        await _send_play_response(
-            message,
-            context,
-            summary,
-            parse_mode='Markdown',
-            disable_web_page_preview=True,
-            reply_markup=markup
-        )
-        logger.debug("Sent /play recent summary to chat_id=%s", chat.id if chat else "unknown")
-        return
-
-    description = (
-        "🎮 **OG88 Bamboo Bash**\n\n"
-        "Tap the button below to open the official OG88 mini-game directly inside Telegram. "
-        "Your session automatically includes Telegram user context so we can track scores "
-        "and organize tournaments later on.\n\n"
-        "Use `/play recent` anytime to see the latest submissions."
-    )
-    await _send_play_response(
-        message,
-        context,
-        description,
-        parse_mode='Markdown',
-        reply_markup=markup
-    )
-    logger.info("Delivered OG88 WebApp prompt to chat_id=%s", chat.id if chat else "unknown")
-
-
-async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Capture payloads sent from the Telegram WebApp and acknowledge receipt."""
-    message = update.effective_message
-    web_app_payload = message.web_app_data if message else None
-    if not message or not web_app_payload:
-        return
-
-    user = update.effective_user
-    raw_data = web_app_payload.data or ""
-    try:
-        parsed_data = json.loads(raw_data) if raw_data else {}
-    except json.JSONDecodeError:
-        parsed_data = raw_data
-
-    score_value = None
-    if isinstance(parsed_data, dict):
-        for key in ("score", "points", "value", "bestScore", "highscore"):
-            if key in parsed_data:
-                score_value = parsed_data[key]
-                break
-
-    timestamp_display = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-    history = ensure_webapp_history(context.application.bot_data)
-    display_name = user.full_name if user and user.full_name else (
-        user.username if user and user.username else "Unknown player"
-    )
-    history.appendleft(
-        {
-            "user_id": user.id if user else None,
-            "username": user.username if user else None,
-            "display_name": display_name,
-            "score": score_value,
-            "payload": parsed_data,
-            "raw": raw_data,
-            "timestamp": timestamp_display,
-        }
-    )
-
-    if score_value not in (None, ""):
-        reply_text = (
-            f"🏁 Recorded {display_name}'s score: *{score_value}*.\n"
-            "We'll use this data to seed OG88 tournaments soon!"
-        )
-    else:
-        reply_text = (
-            "✅ Received your OG88 Bamboo Bash data. Stay tuned for tournament brackets!"
-        )
-    await message.reply_text(reply_text, parse_mode='Markdown')
 
 
 async def burnwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1014,10 +804,6 @@ def main():
         print("Error: TELEGRAM_BOT_TOKEN not found. Please set it in your environment variables.")
         return
 
-    if not OG88_WEBAPP_URL:
-        print("Error: OG88_WEBAPP_URL not found. Please set it in your environment variables.")
-        return
-    
     # Create the Application
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     job_queue = application.job_queue
@@ -1032,17 +818,13 @@ def main():
     application.add_handler(CommandHandler("burnwatch", burnwatch_command))
     application.add_handler(CommandHandler("buys", buys_command))
     application.add_handler(CommandHandler("ca", contract_address_command))
-    play_chat_filter = filters.ChatType.PRIVATE | filters.ChatType.GROUPS
-    application.add_handler(CommandHandler("play", play_command, filters=play_chat_filter))
-    application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data))
-    
+
     # Initialize burn watch data structures
     application.bot_data.setdefault("burn_watch_subscribers", set())
     application.bot_data.setdefault("burn_watch_state", {"last_hash": None})
     application.bot_data.setdefault("big_buy_subscribers", set())
     application.bot_data.setdefault("big_buy_state", {"last_hash": None})
-    application.bot_data.setdefault(WEBAPP_HISTORY_KEY, deque(maxlen=WEBAPP_HISTORY_LIMIT))
-    
+
     # Schedule burn monitoring job
     job_queue.run_repeating(
         monitor_burn_wallet,
