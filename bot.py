@@ -406,7 +406,7 @@ async def supply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     circulating_display = format_supply_value(supply_info.get("circulating_supply"))
 
     response = "🐼 OG88 SUPPLY IS INSANE RIGHT NOW\n"
-    response += f"✅ Circulating: {circulating_display} ANDA (basically maxed)\n"
+    response += f"✅ Circulating: {circulating_display} OG88 (basically maxed)\n"
     response += f"🔥 Burned: {burned_display} OG88 sent to hell forever\n"
     response += f"📦 Total ever: ONLY {total_display} OG88\n"
     response += "Fixed supply + buybacks eating the rest = your bags about to get thicc 🚀\n"
