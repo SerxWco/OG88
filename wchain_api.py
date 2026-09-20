@@ -117,7 +117,9 @@ class WChainAPI:
         token_address: str,
         decimals: int
     ) -> Optional[Decimal]:
-        """Return the normalized balance for a token at a specific address."""
+        """Return the normalized balance for a token at a specific address, or
+        None if the lookup couldn't confirm one (as opposed to a confirmed
+        zero balance)."""
         balances = self._fetch_address_token_balances(address)
         if not balances:
             return None
@@ -129,8 +131,68 @@ class WChainAPI:
                 raw_value = entry.get("value") or entry.get("balance") or entry.get("quantity")
                 result = self._normalize_erc20_amount(raw_value, decimals)
                 return result if result is not None else Decimal("0")
-        # If the token is not present, treat as zero balance
-        return Decimal("0")
+        # The address's balance list didn't include this token. This can
+        # legitimately mean a zero balance, but for an address holding many
+        # unrelated tokens (e.g. a shared burn wallet) the explorer's
+        # per-address balance list may omit or truncate entries, so treat
+        # this as "unknown" rather than assuming zero.
+        print(
+            f"Token {token_address} not found in {len(balances)} balance "
+            f"entries for {address}; falling back to the token's holder list."
+        )
+        return None
+
+    def _get_token_holder_balance(
+        self,
+        token_address: str,
+        holder_address: str,
+        decimals: int,
+        max_pages: int = 15
+    ) -> Optional[Decimal]:
+        """Look up a specific holder's balance via the token's holders list.
+
+        Used as a fallback for addresses (like a shared burn wallet) whose
+        own token-balances listing may omit a token the address genuinely
+        holds a large balance of.
+        """
+        normalized_token = token_address.lower()
+        target_holder = holder_address.lower()
+        url = f"{BLOCKSCOUT_API_BASE}/tokens/{normalized_token}/holders"
+        params: Optional[Dict] = {}
+
+        for _ in range(max_pages):
+            try:
+                response = requests.get(url, params=params or None, timeout=10)
+                response.raise_for_status()
+                payload = response.json()
+            except requests.RequestException as exc:
+                print(f"Error fetching holders for token {token_address}: {exc}")
+                return None
+
+            items = payload.get("items") if isinstance(payload, dict) else None
+            if not isinstance(items, list):
+                return None
+
+            for entry in items:
+                holder_info = entry.get("address", {}) if isinstance(entry.get("address"), dict) else {}
+                entry_address = (
+                    holder_info.get("hash")
+                    or entry.get("address_hash")
+                    or entry.get("address")
+                    or ""
+                ).lower()
+                if entry_address == target_holder:
+                    raw_value = entry.get("value") or entry.get("balance")
+                    result = self._normalize_erc20_amount(raw_value, decimals)
+                    return result if result is not None else Decimal("0")
+
+            next_page_params = payload.get("next_page_params") if isinstance(payload, dict) else None
+            if not next_page_params:
+                break
+            params = next_page_params
+
+        # Not found within the pages we checked; not confirmed as zero.
+        return None
     
     def get_wco_price(self) -> Optional[Dict]:
         """Get WCO token price and 24h change"""
@@ -338,6 +400,8 @@ class WChainAPI:
         burn_data_found = False
         for address in normalized_addresses:
             balance = self._get_token_balance_for_address(address, OG88_TOKEN_ADDRESS, decimals)
+            if balance is None:
+                balance = self._get_token_holder_balance(OG88_TOKEN_ADDRESS, address, decimals)
             if balance is None:
                 continue
             burn_data_found = True
