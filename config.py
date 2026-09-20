@@ -2,23 +2,17 @@ import os
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional
 
-# Basic .env parsing so we can re-use values throughout the config file
-_ENV_CACHE = {}
-try:
-    with open('.env', 'r', encoding='utf-8') as env_file:
-        for raw_line in env_file:
-            line = raw_line.strip()
-            if not line or line.startswith('#') or '=' not in line:
-                continue
-            key, value = line.split('=', 1)
-            _ENV_CACHE[key.strip()] = value.strip()
-except FileNotFoundError:
-    pass
+from dotenv import load_dotenv
+
+# Loads variables from a local .env file for development, without
+# overriding real environment variables already set by the host
+# (e.g. Railway's dashboard variables take precedence in production).
+load_dotenv()
 
 
 def _get_env(key: str, default: Optional[str] = None) -> Optional[str]:
-    """Read configuration values with precedence: .env cache -> environment -> default."""
-    return _ENV_CACHE.get(key) or os.getenv(key) or default
+    """Read configuration values with precedence: real environment -> .env file -> default."""
+    return os.getenv(key) or default
 
 
 def _get_env_list(key: str, default: Optional[str] = None) -> List[str]:
