@@ -425,33 +425,31 @@ class WChainAPI:
         self.cache_timestamps[cache_key] = time.time()
         return result
 
-    def get_address_token_transfers(self, address: str, limit: int = 10) -> Optional[List[Dict]]:
-        """Fetch recent token transfers for a specific address from the explorer API."""
-        normalized_address = address.lower()
-        url = f"{BLOCKSCOUT_API_BASE}/addresses/{normalized_address}/token-transfers"
-        params = {
-            "type": "TOKEN",
-            "items_count": limit
-        }
-        try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            return data.get('items', [])
-        except requests.RequestException as exc:
-            print(f"Error fetching token transfers for {address}: {exc}")
-            return None
+    def get_recent_og88_burns(self, limit: int = 5, fetch_size: int = 40) -> Optional[List[Dict]]:
+        """Return the most recent OG88 transfers sent to the burn wallet.
 
-    def get_recent_og88_burns(self, limit: int = 5) -> Optional[List[Dict]]:
-        """Return the most recent OG88 transfers sent to the burn wallet."""
-        transfers = self.get_address_token_transfers(BURN_WALLET_ADDRESS, limit=limit)
+        Scoped to OG88's own transfer feed rather than the burn wallet's
+        general transfer history: 0x…dEaD is a shared burn address used by
+        many unrelated projects on this chain, so scanning only its most
+        recent few transfers (of any token) can miss an OG88 burn that gets
+        crowded out by other tokens' burns between polls.
+        """
+        transfers = self._fetch_token_transfers_for_token(
+            OG88_TOKEN_ADDRESS,
+            limit=max(fetch_size, limit * 4)
+        )
         if transfers is None:
             return None
-        og88_transfers = [
-            tx for tx in transfers
-            if tx.get('token', {}).get('address', '').lower() == OG88_TOKEN_ADDRESS
-        ]
-        return og88_transfers or []
+        burn_wallet = BURN_WALLET_ADDRESS.lower()
+        burns = []
+        for entry in transfers:
+            to_address = (entry.get("to", {}).get("hash") or "").lower()
+            if to_address != burn_wallet:
+                continue
+            burns.append(entry)
+            if len(burns) >= limit:
+                break
+        return burns
 
     def get_recent_og88_buys(
         self,
